@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+PROCESSES=(monetdb mserver)
+
+pgrep ${PROCESSES[@]} && pkill -SIGKILL ${PROCESSES[@]}

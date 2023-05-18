@@ -1,0 +1,6 @@
+keras==2.12.0
+matplotlib==3.7.1
+pandas==2.0.1
+Pillow==9.5.0
+pymonetdb==1.6.4
+tensorflow==2.12.0

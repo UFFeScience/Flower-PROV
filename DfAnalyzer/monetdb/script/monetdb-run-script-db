@@ -1,0 +1,14 @@
+#!/bin/bash
+
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPTDIR=$SCRIPT/monetdb/script
+
+. $SCRIPTDIR/farm.in
+
+echo "Running scripts using mclient in database instance...$DB:"
+for script in "$@"
+do
+	echo "  - $script"
+done
+
+mclient -p $PORT -d $DB "$@"

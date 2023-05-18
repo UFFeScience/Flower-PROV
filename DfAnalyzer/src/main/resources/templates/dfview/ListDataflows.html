@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/MainLayout.html}">
+
+<head>
+    <title>List Dataflows</title>
+</head>
+
+<section layout:fragment="css-extra">
+    <!--Css extra-->
+    <style>
+        .page-title{
+            margin-top: 0px !important;
+        }
+    </style>
+</section>
+<section layout:fragment="page-header">
+    <!--Page_header-->
+    <h1 class="page-title"> All dataflows in DfAnalyzer's database </h1>
+</section>
+
+<section layout:fragment="main-content">
+
+    <!--Page content-->
+    <div id="app">
+        <ul>
+            <li v-for="exec in executions">
+                <!--<a :href="'/dfa/dfview/visualization?dfId=' + exec.id">-->
+                <b>{{exec.tag}} :</b>
+                <a :href="'/dfview/visualization?dfId=' + exec.id">
+                    <i class="fa fa-image"></i>
+                    View
+                </a>
+                                 
+<!--                <a :href="'/dfview/query?dfId=' + exec.id">
+                   Query
+                </a>-->
+            </li>
+        </ul>
+    </div>
+</section>
+
+<section layout:fragment="js-extra">
+    <!--Js extra-->
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                executions: []
+            }, methods: {
+                loadAllExecutions: function () {
+                    var context = this;
+                    $.ajax({
+//                        url: '/dfa/api/dataflows/list',
+                        url: '/api/dataflows/list',
+                        type: 'GET',
+                        success: function (result) {
+                            context.executions = result
+                        }
+                    });
+                }
+            }
+        });
+        app.loadAllExecutions();
+    </script>
+</section>
+
+</html>

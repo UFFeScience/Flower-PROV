@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<!-- saved from url=(0056)http://visjs.org/examples/network/edgeStyles/arrows.html -->
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      xmlns:th="http://www.thymeleaf.org"
+      layout:decorate="~{layout/MainLayout}">
+<head>
+    <title>DfAnalyzer</title>
+</head>
+<section layout:fragment="css-extra">
+    <!--Css extra-->
+    <link href="/css/third_party/grids-min.css" rel="stylesheet" type="text/css"/>
+    <link href="/css/third_party/vis-network.min.css" rel="stylesheet" type="text/css"/>
+    <style type="text/css">
+        #mynetwork {
+            width: 100%;
+            border: 1px solid lightgray;
+        }
+
+        .main-content-height {
+            height: 74vh;
+        }
+
+        .page-title {
+            margin-top: 0px !important;
+        }
+    </style>
+</section>
+<section layout:fragment="page-header">
+    <!--Page_header-->
+    <h1 class="page-title">
+        Visualization on the dataset perspective.
+    </h1>
+</section>
+
+<section layout:fragment="main-content" id="app">
+    <!--Page content-->
+    <div class="row">
+        <div class="col-lg-9 col-xs-12 col-sm-12">
+            <div class="portlet light">
+                <div class="portlet-title">
+                    <div class="caption">
+                        <span class="caption-subject bold uppercase font-dark">Dataflow tag:</span> 
+                        <span id="dataflowtag"><b th:text="${dataflow.tag}"></span></b>.
+                    </div>
+                    <div class="actions">
+                        <a class="btn btn-circle btn-icon-only btn-default fullscreen" href="#"
+                           data-original-title="" title=""> </a>
+                    </div>
+                </div>
+                <div class="portlet-body" style="height: auto;">
+                    <div>
+                        <div id="mynetwork" class="main-content-height">
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-xs-12 col-sm-12">
+            <div class="portlet light ">
+                <div class="portlet-title">
+                    <div class="caption ">
+                        <span class="caption-subject font-dark bold uppercase">Attributes of dataset:</span>
+                        <b v-if="selectedElemet!=null">{{selectedElemet.name}}</b>
+                    </div>
+                </div>
+                <div class="portlet-body">
+                    <div class="main-content-height">
+
+                        <div id="toempty" v-if="selectedElemet==null">
+                            <h>
+                                Select a <b>dataset</b> in Graph
+                            </h>
+                        </div>
+                        <div id="dataset" v-else="">
+                            <!--<center><pre><b>Name ; Type</b></pre></center>-->
+                            <!--Débora-->
+                            <input type="hidden" id="ds-selected" value="" />
+                            <input type="hidden" id="ds-origins" value="" />
+                            <input type="hidden" id="ds-destinations" value="" />
+                            
+                            <h2 id="ds_name"></h2>            
+                            <div id="ds_main">
+                                <div id="ds-query-type">
+                                    <h4 style="display: inline-block">Query type: </h4>
+                                    <input type="checkbox" name="attribute" value="physical" v-model="dataset.QueryType"> Physical
+                                    <input type="checkbox" name="attribute" value="logical" v-model="dataset.QueryType"> Logical
+                                </div> 
+                                <!--<span>Tipos assinalados: {{ dataset.QueryType }}</span>-->
+                                <div id="ds-projection">
+                                    <h4>Attributes:</h4>                                   
+<!--                                    <div id="ds-attributes" v-for="att in selectedElemet.atts">
+                                        <input type="checkbox" v-bind:id="att.name" v-bind:value="att.name" v-model="dataset.dataSetSelectedAtt[selectedElemet.name]"> {{ att.name }}
+                                    </div>                   -->
+                                    <ul v-bind:id="selectedElemet.name">
+                                      <li v-for="att in selectedElemet.atts">
+                                        <!--<input type="checkbox" v-model="dataset.dataSetSelectedAtt[app.selectedElemet.name]"> {{att.name}}-->
+                                        <input type="checkbox" v-bind:id="att.name" v-bind:value="att.name" v-model="dataset.CheckedAtt"> {{att.name}}
+                                      </li>
+                                    </ul>                                    
+                                    <!--<span>Nomes assinalados: {{ dataset.CheckedAtts }}</span>-->
+                                        <!--<center><pre v-for="att in selectedElemet.atts">{{att.name}}</pre></center>-->
+                                </div>                                
+                                </div>
+                                <div id="ds-selection">
+                                    <h4>Conditions:</h4>                  
+                                    <!--<textarea id="ds-selection-text" rows="4" cols="50" placeholder="Describe selection here..."></textarea>-->
+                                    <textarea id="ds-selection-text" rows="4" cols="45" v-model="dataset.Conditions" placeholder="e.g., table1.att1 > 100"></textarea>
+                                    <!--<p style="white-space: pre-line">Conditions: {{ dataset.Conditions }}</p>-->
+                                </div>
+                                <input type="hidden" id="ds-selected" value="" />
+                                <input type="hidden" id="ds-origins" value="" />
+                                <input type="hidden" id="ds-destinations" value="" />                            
+                                <button type="submit" id="saveBtn" class="btn btn-primary" v-on:click="dataset.save()">Save changes</button>   
+                                <button type="button" class="btn">Cancel</button>                          
+                                <br><br>
+                                <button type="button" id="runBtn" class="btn btn-info" v-on:click="dataset.run">Run Query</button>  
+                                <br><br>
+                                <span id="saved" style="display: none; background-color:#01DF01; height: 25px; width: 50px;">Saved!</span>
+                            </div> 
+                            <!--Débora-->
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section layout:fragment="js-extra">
+    <!--Js extra-->
+    <script src="/js/third_party/vis.min.js"></script>
+    <script src="/js/visualization.js"></script>
+    <script src="/js/QueryVis.js"></script>
+</section>
+
+</html>

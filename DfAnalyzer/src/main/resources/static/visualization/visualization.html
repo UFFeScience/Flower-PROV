@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<!-- saved from url=(0056)http://visjs.org/examples/network/edgeStyles/arrows.html -->
+<html class="gr__visjs_org"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>DfAnalyzer</title>
+
+  <script type="text/javascript" src="./visualization_files/vis.js.download"></script>
+  <link href="./visualization_files/vis-network.min.css" rel="stylesheet" type="text/css">
+
+  <style type="text/css">
+    #mynetwork {
+      width: 1200px;
+      height: 500px;
+      border: 1px solid lightgray;
+    }
+  </style>
+</head>
+<body data-gr-c-s-loaded="true">
+
+<p>
+  Visualization from the dataset perspective.
+</p>
+<p>
+  Dataflow tag: <b>clothing</b>.
+</p>
+
+<div id="mynetwork"><div class="vis-network" tabindex="900" style="position: relative; overflow: hidden; touch-action: pan-y; user-select: none; -webkit-user-drag: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); width: 100%; height: 100%;"><canvas width="750" height="500" style="position: relative; touch-action: none; user-select: none; -webkit-user-drag: none; -webkit-tap-highlight-color: rgba(0, 0, 0, 0); width: 100%; height: 100%;"></canvas></div></div>
+
+<script type="text/javascript">
+  // create an array with nodes
+  var nodes = new vis.DataSet([
+    {id: 1, label: 'ideduplication', shape: 'box', color: '#7BE141', 
+    title: "(customerid,country,continent,age,gender,children,status)"},
+    {id: 2, label: 'odeduplication', shape: 'box',
+    title: "(customerid,country,continent,age,gender,children,status)"},
+    {id: 3, label: 'oeurope', shape: 'box',
+    title: "(customerid,country,continent,age,gender,children,status)"},
+    {id: 4, label: 'ounited_states', shape: 'box',
+    title: "(customerid,country,continent,age,gender,children,status)"},
+    {id: 5, label: 'ounion', shape: 'box',
+    title: "(customerid,country,continent,age,gender,children,status)"},
+    {id: 6, label: 'ocartesian_product', shape: 'box',
+    title: "(customerid,country,continent,age,gender,children,status,clothid,description)"},
+    {id: 7, label: 'oprediction', shape: 'box',
+    title: "(customerid,buyingpatternid,clothid,probability)"},
+    {id: 8, label: 'oaggregation', shape: 'box', color: '#FB7E81',
+    title: "(clothid,quantity)"},
+    {id: 9, label: 'icloth_items', shape: 'box', color: '#7BE141',
+    title: "(clothid,description)"},
+    {id: 10, label: 'ibuying_patterns', shape: 'box', color: '#7BE141',
+    title: "(buyingpatternid,clothid,country,continent,age,gender,children,status)"},
+  ]);
+
+  // create an array with edges
+  var edges = new vis.DataSet([
+    {from: 1, to: 2, arrows:'to', label: 'deduplication', color:{color:'black'}},
+    {from: 2, to: 3, arrows:'to', label: 'europe', color:{color:'black'}},
+    {from: 2, to: 4, arrows:'to', label: 'united_states', color:{color:'black'}},
+    {from: 3, to: 5, arrows:'to', label: 'union', color:{color:'black'}},
+    {from: 4, to: 5, arrows:'to', label: 'union', color:{color:'black'}},
+    {from: 5, to: 6, arrows:'to', label: 'cartesian_product', color:{color:'black'}},
+    {from: 6, to: 7, arrows:'to', label: 'prediction', color:{color:'black'}},
+    {from: 7, to: 8, arrows:'to', label: 'aggregation', color:{color:'black'}},
+    {from: 9, to: 6, arrows:'to', label: 'cartesian_product', color:{color:'black'}},
+    {from: 10, to: 7, arrows:'to', label: 'prediction', color:{color:'black'}}
+
+    // {from: 1, to: 8, arrows:'to', dashes:true},
+    // {from: 1, to: 3, arrows:'to'},
+    // {from: 1, to: 2, arrows:'to, from'},
+    // {from: 2, to: 4, arrows:'to, middle'},
+    // {from: 2, to: 5, arrows:'to, middle, from'},
+    // {from: 5, to: 6, arrows:{to:{scaleFactor:2}}},
+    // {from: 6, to: 7, arrows:{middle:{scaleFactor:0.5},from:true}}
+  ]);
+
+  // create a network
+  var container = document.getElementById('mynetwork');
+  var data = {
+    nodes: nodes,
+    edges: edges
+  };
+  var options = {};
+  var network = new vis.Network(container, data, options);
+</script>
+
+
+
+
+</body></html>

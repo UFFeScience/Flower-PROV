@@ -1,0 +1,11 @@
+# Absoluate path to the DBfarm (managed by monetdbd).
+# FARM=${FARM:-$HOME/quests/tcc/dbfarm}
+FARM=/home/vitor/script/monetdb/data
+
+# Name of the database (managed by monetdb).
+DB=${DB:-dataflow_analyzer}
+
+# The port to use to connect to monetdb.
+PORT=${PORT:-50000}
+
+# vim: ft=sh

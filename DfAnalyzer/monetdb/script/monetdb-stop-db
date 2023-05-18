@@ -1,0 +1,9 @@
+#!/bin/bash
+
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPTDIR=$SCRIPT/monetdb/script
+
+. $SCRIPTDIR/farm.in
+
+echo "Stopping database instance...$DB"
+monetdb stop $DB

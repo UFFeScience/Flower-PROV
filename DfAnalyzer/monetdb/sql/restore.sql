@@ -1,0 +1,9 @@
+delete from dataflow;
+delete from data_transformation;
+delete from program;
+delete from use_program;
+delete from data_set;
+delete from data_dependency;
+delete from attribute;
+delete from task;
+delete from file;

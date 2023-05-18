@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<!-- saved from url=(0056)http://visjs.org/examples/network/edgeStyles/arrows.html -->
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      xmlns:th="http://www.thymeleaf.org"
+      layout:decorate="~{layout/MainLayout}">
+
+    <head>
+        <title>DfA's Docs</title>
+    </head>
+    <section layout:fragment="css-extra">
+        <!--Css extra-->
+        <style type="text/css">
+            #mynetwork {
+                width: 100%;
+                border: 1px solid lightgray;
+            }
+
+            .main-content-height {
+                height: 74vh;
+            }
+
+            .page-title {
+                margin-top: 0px !important;
+            }
+        </style>
+    </section>
+    <section layout:fragment="page-header">
+        <!--Page_header-->
+        <h1 class="page-title">
+            Documentation of RESTful services
+        </h1>
+    </section>
+
+    <section layout:fragment="main-content" id="app">
+        <!--Page content-->
+        <div class="row">
+            <div class="col-md-12">
+                <div class="tabbable-line boxless tabbable-reversed">
+                    <div class="tab-content">
+                        <div class="tab-pane active" id="tab_0">
+                            <div class="portlet box green">
+                                <div class="portlet-title">
+                                    <div class="caption">
+                                        <i class="fa fa-file-powerpoint-o"></i>Provenance Data Extractor
+                                    </div>
+                                    <div class="tools">
+                                        <a href="javascript:;" class="collapse" data-original-title="" title=""> </a>
+                                    </div>
+                                </div>
+                                <div class="portlet-body form">
+                                    <div>
+                                        <p><br><b>Methods for prospective provenance data</b></p>
+                                        <p><b>URL:</b> /pde/dataflow</p>
+                                    </div>
+                                    <div class="table-scrollable">
+                                        <table class="table table-striped table-bordered table-advance table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>
+                                                        <i class="fa fa-code-fork"></i> <b>Concept </b>
+                                                    </th>
+                                                    <th class="hidden-xs">
+                                                        <i class="fa fa-code"></i> <b>Method</b> (body of the HTTP request)
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td>
+                                                        Dataflow
+                                                    </td>
+                                                    <td> 
+                                                        dataflow(tag)
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        Program
+                                                    </td>
+                                                    <td> 
+                                                        program(name, path)
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        Dataset
+                                                    </td>
+                                                    <td> 
+                                                        dataset(tag, attributes, types)
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        Extractor
+                                                    </td>
+                                                    <td> 
+                                                        extractor(datasetTag, tag, method, cartridge, namesOfAttributes, typesOfAttributes)
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        Extractor Combination
+                                                    </td>
+                                                    <td> 
+                                                        extractor_combination(datasetTag, innerExtractorTag, outerExtractorTag, namesOfAttributes, typesOfAttributes)
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        Transformation
+                                                    </td>
+                                                    <td> 
+                                                        transformation(tag, tagsOfInputDatasets, tagsOfOutputDatasets, namesOfPrograms)
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div>
+                                        <p><br><b>Methods for retrospective provenance data</b></p>
+                                        <p><b>URL:</b> /pde/task</p>
+                                    </div>
+                                    <div class="table-scrollable">
+                                        <table class="table table-striped table-bordered table-advance table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>
+                                                        <i class="fa fa-code-fork"></i> <b>Concept</b>
+                                                    </th>
+                                                    <th class="hidden-xs">
+                                                        <i class="fa fa-code"></i> <b>Method</b> (body of the HTTP request)
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td>
+                                                        Task
+                                                    </td>
+                                                    <td> 
+                                                        task(dataflowTag, transformationTag, ID[, subID], status[, workspace, resource])
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        File
+                                                    </td>
+                                                    <td> 
+                                                        file(name, path)
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        Collection
+                                                    </td>
+                                                    <td> 
+                                                        collection(datasetTag, elements)
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        Dependency
+                                                    </td>
+                                                    <td> 
+                                                        dependency(transformationTags, taskIDsOfDependentTasks)
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="portlet box red-soft">
+                                <div class="portlet-title">
+                                    <div class="caption">
+                                        <i class="fa fa-search-plus"></i>Query Interface
+                                    </div>
+                                    <div class="tools">
+                                        <a href="javascript:;" class="collapse" data-original-title="" title=""> </a>
+                                    </div>
+                                </div>
+                                <div class="portlet-body form">
+                                    <div>
+                                        <p><br><b>Methods for running a query considering a fragment of the dataflow path</b></p>
+                                        <p><b>URL:</b> /query_interface/{dataflow_tag}/{dataflow_version}</p>
+                                    </div>
+                                    <div class="table-scrollable">
+                                        <table class="table table-striped table-bordered table-advance table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>
+                                                        <i class="fa fa-code-fork"></i> <b>Concept </b>
+                                                    </th>
+                                                    <th class="hidden-xs">
+                                                        <i class="fa fa-code"></i> <b>Method</b> (body of the HTTP request)
+                                                    </th>
+                                                    <th class="hidden-xs">
+                                                        <i class="fa fa-info-circle"></i> <b>Additional information</b> 
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td>
+                                                        Mapping
+                                                    </td>
+                                                    <td> 
+                                                        mapping(type)
+                                                    </td>
+                                                    <td>
+                                                        <i>type</i> = PHYSICAL, LOGICAL or HYBRID
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        Source datasets
+                                                    </td>
+                                                    <td> 
+                                                        source(datasetTags)
+                                                    </td>
+                                                    <td>
+                                                        
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        Target datasets
+                                                    </td>
+                                                    <td> 
+                                                        target(datasetTags)
+                                                    </td>
+                                                    <td>
+                                                        
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        Includes
+                                                    </td>
+                                                    <td> 
+                                                        include(datasetTags)
+                                                    </td>
+                                                    <td>
+                                                        Datasets to be included in the fragment of dataflow path.
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        Excludes
+                                                    </td>
+                                                    <td> 
+                                                        exclude(datasetTags)
+                                                    </td>
+                                                    <td>
+                                                        Datasets to be excluded from the fragment of dataflow path.
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        Projections
+                                                    </td>
+                                                    <td> 
+                                                        projection(attributes)
+                                                    </td>
+                                                    <td>
+                                                        <i>attributes</i> argument defines which attributes will be obtained after query processing. <br>
+                                                            e.g., attributes = {table1.att1;table2.att2}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        Selections
+                                                    </td>
+                                                    <td> 
+                                                        selection(conditions)
+                                                    </td>
+                                                    <td>
+                                                        <i>conditions</i> is used to filter only relevant data elements.<br>
+                                                            e.g., table1.att1 > 100
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </section>
+
+</html>

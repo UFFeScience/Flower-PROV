@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      xmlns:th="http://www.thymeleaf.org"
+      layout:decorate="~{layout/MainLayout}">
+
+    <head>
+        <title>Page Title</title>
+    </head>
+    <section layout:fragment="css-extra">
+        <!--Css extra-->
+        <style>
+            .page-title {
+                margin-top: 0px !important;
+            }
+        </style>
+    </section>
+    <section layout:fragment="page-header">
+        <!--Page_header-->
+        <h1 class="page-title">
+            Query Processor.
+        </h1>
+    </section>
+
+    <section layout:fragment="main-content"  id="app">
+        <!--Page content-->
+        <div class="row">
+            <div class="col-lg-12 col-xs-12 col-sm-12">
+                <div class="portlet light">
+                    <div class="portlet-title">
+                        <div class="caption">
+                            <span class="caption-subject bold uppercase font-dark">Dataflow tag:</span> <b
+                                th:text="${dataflow.tag}">tag</b>.
+                        </div>
+                        <div class="actions">
+                            <a class="btn btn-circle btn-icon-only btn-default fullscreen" href="#"
+                               data-original-title="" title=""> </a>
+                        </div>
+                    </div>
+                    <div class="portlet-body" style="height: auto;">
+                        <div id="form" class="form-horizontal" role="form">
+
+                            <div class="form-body">
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Block Help</label>
+                                    <div class="col-md-9">
+                                        <input class="form-control" placeholder="Enter text" type="text">
+                                            <span class="help-block"> A block of help text. </span>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Inline Help</label>
+                                    <div class="col-md-9">
+                                        <input class="form-control input-inline input-medium" placeholder="Enter text" type="text">
+                                            <span class="help-inline"> Inline help. </span>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Input Group</label>
+                                    <div class="col-md-9">
+                                        <div class="input-inline input-medium">
+                                            <div class="input-group">
+                                                <span class="input-group-addon">
+                                                    <i class="fa fa-user"></i>
+                                                </span>
+                                                <input class="form-control" placeholder="Email Address" type="email"> </div>
+                                        </div>
+                                        <span class="help-inline"> Inline help. </span>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Email Address</label>
+                                    <div class="col-md-9">
+                                        <div class="input-group">
+                                            <span class="input-group-addon">
+                                                <i class="fa fa-envelope"></i>
+                                            </span>
+                                            <input class="form-control" placeholder="Email Address" type="email"> </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Password</label>
+                                    <div class="col-md-9">
+                                        <div class="input-group">
+                                            <input class="form-control" placeholder="Password" type="password">
+                                                <span class="input-group-addon">
+                                                    <i class="fa fa-user"></i>
+                                                </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Left Icon</label>
+                                    <div class="col-md-9">
+                                        <div class="input-icon">
+                                            <i class="fa fa-bell-o"></i>
+                                            <input class="form-control" placeholder="Left icon" type="text"> </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Right Icon</label>
+                                    <div class="col-md-9">
+                                        <div class="input-icon right">
+                                            <i class="fa fa-microphone"></i>
+                                            <input class="form-control" placeholder="Right icon" type="text"> </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Icon Input in Group Input</label>
+                                    <div class="col-md-9">
+                                        <div class="input-group">
+                                            <div class="input-icon">
+                                                <i class="fa fa-lock fa-fw"></i>
+                                                <input id="newpassword" class="form-control" name="password" placeholder="password" type="text"> </div>
+                                            <span class="input-group-btn">
+                                                <button id="genpassword" class="btn btn-success" type="button">
+                                                    <i class="fa fa-arrow-left fa-fw"></i> Random</button>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Input With Spinner</label>
+                                    <div class="col-md-9">
+                                        <input class="form-control spinner" placeholder="Password" type="password"> </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Static Control</label>
+                                    <div class="col-md-9">
+                                        <p class="form-control-static"> email@example.com </p>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Disabled</label>
+                                    <div class="col-md-9">
+                                        <input class="form-control" placeholder="Disabled" disabled="" type="password"> </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Readonly</label>
+                                    <div class="col-md-9">
+                                        <input class="form-control" placeholder="Readonly" readonly="" type="password"> </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Dropdown</label>
+                                    <div class="col-md-9">
+                                        <select class="form-control">
+                                            <option>Option 1</option>
+                                            <option>Option 2</option>
+                                            <option>Option 3</option>
+                                            <option>Option 4</option>
+                                            <option>Option 5</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Multiple Select</label>
+                                    <div class="col-md-9">
+                                        <select multiple="" class="form-control">
+                                            <option>Option 1</option>
+                                            <option>Option 2</option>
+                                            <option>Option 3</option>
+                                            <option>Option 4</option>
+                                            <option>Option 5</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Textarea</label>
+                                    <div class="col-md-9">
+                                        <textarea class="form-control" rows="3" v-model="input_form.source_dataset"></textarea>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="exampleInputFile" class="col-md-3 control-label">File input</label>
+                                    <div class="col-md-9">
+                                        <input id="exampleInputFile" type="file">
+                                            <p class="help-block"> some help text here. </p>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Checkboxes</label>
+                                    <div class="col-md-9">
+                                        <div class="mt-checkbox-list">
+                                            <label class="mt-checkbox">
+                                                <input type="checkbox"> Checkbox 1
+                                                    <span></span>
+                                            </label>
+                                            <label class="mt-checkbox">
+                                                <input type="checkbox"> Checkbox 1
+                                                    <span></span>
+                                            </label>
+                                            <label class="mt-checkbox mt-checkbox-disabled">
+                                                <input disabled="" type="checkbox"> Disabled
+                                                    <span></span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Outline Checkboxes</label>
+                                    <div class="col-md-9">
+                                        <div class="mt-checkbox-list">
+                                            <label class="mt-checkbox mt-checkbox-outline">
+                                                <input type="checkbox"> Checkbox 1
+                                                    <span></span>
+                                            </label>
+                                            <label class="mt-checkbox mt-checkbox-outline">
+                                                <input type="checkbox"> Checkbox 1
+                                                    <span></span>
+                                            </label>
+                                            <label class="mt-checkbox mt-checkbox-outline mt-checkbox-disabled">
+                                                <input disabled="" type="checkbox"> Disabled
+                                                    <span></span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Inline Checkboxes</label>
+                                    <div class="col-md-9">
+                                        <div class="mt-checkbox-inline">
+                                            <label class="mt-checkbox">
+                                                <input id="inlineCheckbox21" value="option1" type="checkbox"> Checkbox 1
+                                                    <span></span>
+                                            </label>
+                                            <label class="mt-checkbox">
+                                                <input id="inlineCheckbox22" value="option2" type="checkbox"> Checkbox 2
+                                                    <span></span>
+                                            </label>
+                                            <label class="mt-checkbox mt-checkbox-disabled">
+                                                <input id="inlineCheckbox23" value="option3" disabled="" type="checkbox"> Disabled
+                                                    <span></span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Radios</label>
+                                    <div class="col-md-9">
+                                        <div class="mt-radio-list">
+                                            <label class="mt-radio">
+                                                <input name="optionsRadios" id="optionsRadios22" value="option1" checked="" type="radio"> Option 1
+                                                    <span></span>
+                                            </label>
+                                            <label class="mt-radio">
+                                                <input name="optionsRadios" id="optionsRadios23" value="option2" checked="" type="radio"> Option 2
+                                                    <span></span>
+                                            </label>
+                                            <label class="mt-radio mt-radio-disabled">
+                                                <input name="optionsRadios" id="optionsRadios24" value="option2" disabled="" type="radio"> Disabled
+                                                    <span></span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Outline Radios</label>
+                                    <div class="col-md-9">
+                                        <div class="mt-radio-list">
+                                            <label class="mt-radio mt-radio-outline">
+                                                <input name="optionsRadios" id="optionsRadios22" value="option1" checked="" type="radio"> Option 1
+                                                    <span></span>
+                                            </label>
+                                            <label class="mt-radio mt-radio-outline">
+                                                <input name="optionsRadios" id="optionsRadios23" value="option2" checked="" type="radio"> Option 2
+                                                    <span></span>
+                                            </label>
+                                            <label class="mt-radio mt-radio-outline mt-radio-disabled">
+                                                <input name="optionsRadios" id="optionsRadios24" value="option2" disabled="" type="radio"> Disabled
+                                                    <span></span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">Inline Radio</label>
+                                    <div class="col-md-9">
+                                        <div class="mt-radio-inline">
+                                            <label class="mt-radio">
+                                                <input name="optionsRadios" id="optionsRadios25" value="option1" checked="" type="radio"> Option 1
+                                                    <span></span>
+                                            </label>
+                                            <label class="mt-radio">
+                                                <input name="optionsRadios" id="optionsRadios26" value="option2" checked="" type="radio"> Option 2
+                                                    <span></span>
+                                            </label>
+                                            <label class="mt-radio mt-radio-disabled">
+                                                <input name="optionsRadios" id="optionsRadios27" value="option3" disabled="" type="radio"> Disabled
+                                                    <span></span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <div class="row">
+                                    <div class="col-md-offset-3 col-md-9">
+                                        <button @click="send" class="btn green">Submit</button>
+                                        <button type="button" class="btn default">Cancel</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row" v-if="table!=null">
+            <div class="col-lg-12 col-xs-12 col-sm-12">
+                <div class="portlet light">
+                    <div class="portlet-title">
+                        <div class="caption">
+                            <span class="caption-subject bold uppercase font-dark">Table with result </span> 
+                        </div>
+                        <div class="actions">
+                            <a class="btn btn-circle btn-icon-only btn-default fullscreen" href="#"
+                               data-original-title="" title=""> </a>
+                        </div>
+                    </div>
+                    <div class="portlet-body" style="height: auto;">
+                        <table>
+                            <tr>
+                                <th v-for="coln in table.header">{{coln}}</th>
+                            </tr>
+                            <tr v-for="row in table.rows">
+                                <th v-for="colrow in row">{{colrow}}</th>
+                            </tr>                           
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </section>
+
+    <section layout:fragment="js-extra">
+        <!--Js extra-->
+        <script src="/js/QueryProcessor.js"></script>
+    </section>
+
+</html>

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPTDIR=$SCRIPT/monetdb/script
+
+. $SCRIPTDIR/farm.in
+
+echo "Creating database instance...$DB"
+monetdb create $DB
+monetdb release $DB
+monetdb status
+
+monetdb-run-script-db $SCRIPTDIR/../sql/create-schema.sql

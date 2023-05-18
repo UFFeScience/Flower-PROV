@@ -1,0 +1,6 @@
+logging:
+  level:
+    org.springframework.web: ERROR
+    com.mkyong: DEBUG
+#  pattern:
+#    console: 

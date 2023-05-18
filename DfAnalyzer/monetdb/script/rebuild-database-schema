@@ -1,0 +1,12 @@
+#!/bin/bash
+
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPTDIR=$SCRIPT/monetdb/script
+
+monetdb-stop-db
+monetdb-destroy-db 
+monetdb-generate-db 
+
+# monetdb-run-sql-scripts $SCRIPTDIR/../sql/prov-db-ext.sql
+
+monetdb-start-db

@@ -1,0 +1,18 @@
+image: "python:3.5"
+
+before_script:
+  - python --version
+  - pip install virtualenv
+  - pip install -e .
+
+stages:
+  - lint
+  - test
+
+test:
+  stage: lint
+  script: pytest
+
+test:
+  stage: test
+  script: pytest
