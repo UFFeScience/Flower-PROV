@@ -11,6 +11,8 @@ from time import perf_counter
 from typing import Any, Optional, Tuple
 from os import environ
 
+from pymonetdb import connect
+
 environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 from keras.applications import MobileNetV2
@@ -34,6 +36,10 @@ from dfa_lib_python.element import Element
 from dfa_lib_python.task_status import TaskStatus
 from dfa_lib_python.extractor_extension import ExtractorExtension
 import time
+
+from pymongo import MongoClient
+from bson.binary import Binary
+import pickle
 
 dataflow_tag = "flower-df"
 
@@ -79,30 +85,128 @@ class Client(NumPyClient):
         # Return the Local Model's Current Parameters (Weights).
         return self.model.get_weights()
 
+    def get_connection_mongodb(self, host, port):
+        client = MongoClient(host=host, port=int(port))
+        return client.flowerprov
+
     def fit(
         self, global_model_current_parameters: NDArrays, fit_config: dict
     ) -> Tuple[NDArrays, int, dict]:
         # Update the Local Model With the Global Model's Current Parameters (Weights).
+        monetdb_settings = {
+            k.replace("monetdb_", ""): v
+            for k, v in fit_config.items()
+            if "monetdb" in k
+        }
+        mongodb_settings = {
+            k.replace("mongodb_", ""): v
+            for k, v in fit_config.items()
+            if "mongodb" in k
+        }
+        fit_config = {
+            k: (None if v == "None" else v)
+            for k, v in fit_config.items()
+            if "monetdb" not in k and "mongodb" not in k
+        }
         self.model.set_weights(global_model_current_parameters)
-
-        t8 = Task(8 + 6 * (fit_config["fl_round"] - 1), dataflow_tag, "ClientTraining")
-        t8.add_dependency(
-            Dependency(
-                [
-                    "datasetload",
-                    "modelconfig",
-                    "optimizerconfig",
-                    "lossconfig",
-                    "trainingconfig",
-                ],
-                ["3", "4", "5", "6", str(7 + 6 * (fit_config["fl_round"] - 1))],
+        if fit_config["fl_round"] <= 2:
+            _experiment_id = fit_config["experiment_id"]
+            _server_id = fit_config["server_id"]
+            connection = connect(
+                hostname=monetdb_settings["hostname"],
+                port=monetdb_settings["port"],
+                username=monetdb_settings["username"],
+                password=monetdb_settings["password"],
+                database=monetdb_settings["database"],
             )
-        )
-        starting_time = time.ctime()
-        t8.begin()
+            cursor = connection.cursor()
+            tables = ["iDatasetLoad", "iModelConfig", "iOptimizerConfig", "iLossConfig"]
+            try:
+                for table in tables:
+                    query = f"""UPDATE ds_{table} SET experiment_id = {_experiment_id} WHERE experiment_id = -1"""
+                    cursor.execute(operation=query)
+                    connection.commit()
+                    query = f"""UPDATE ds_{table} SET server_id = {_server_id} WHERE server_id = -1"""
+                    cursor.execute(operation=query)
+                    connection.commit()
+            except:
+                pass
+            finally:
+                cursor.close()
+                connection.close()
+
+        checkpoint_frequency = int(fit_config["checkpoint_frequency"])
+        mongo_id = None
+        if fit_config["fl_round"] > 2 and fit_config["action"] == "different_models":
+
+            connection = connect(
+                hostname=monetdb_settings["hostname"],
+                port=monetdb_settings["port"],
+                username=monetdb_settings["username"],
+                password=monetdb_settings["password"],
+                database=monetdb_settings["database"],
+            )
+
+            cursor = connection.cursor()
+
+            result = None
+            tries = 0
+            fl_round = fit_config["fl_round"]
+            experiment_id = fit_config["experiment_id"]
+            server_id = fit_config["server_id"]
+            while tries < 50 and not result:
+                query = f"""SELECT check_if_last_round_is_already_recorded({experiment_id},{server_id},{fl_round})"""
+                cursor.execute(operation=query)
+                connection.commit()
+                result = cursor.fetchone()
+
+                if result:
+                    result = result[-1]
+                tries += 1
+                time.sleep(0.05)
+
+            if result:
+                query = f"""SELECT get_client_last_round({experiment_id}, {server_id}, {self.client_id})"""
+                cursor.execute(operation=query)
+                round = cursor.fetchone()
+                if round and round[0]:
+                    last_round = int(round[0])
+                    cursor.close()
+                    connection.close()
+                    if fit_config["fl_round"] != (last_round + 1):
+                        db = self.get_connection_mongodb(
+                            mongodb_settings["hostname"], mongodb_settings["port"]
+                        )
+                        pesos = list(
+                            db.checkpoints.find(
+                                {
+                                    "$and": [
+                                        {"experiment_id": {"$eq": experiment_id}},
+                                        {
+                                            "server_id": {"$eq": server_id},
+                                            "consistent": {"$eq": True},
+                                        },
+                                    ]
+                                }
+                            )
+                            .sort([("round", -1)])
+                            .limit(1)
+                        )
+                        if pesos:
+                            params = pickle.loads(pesos[0]["global_weights"])
+                            message = f"Loading client {self.client_id} with global weights from round {pesos[0]['round']}"
+                            self.log_message(message, "INFO")
+                            self.model.set_weights(params)
+                            mongo_id = pesos[0]["_id"]
+                        else:
+                            message = f"Couldn't find valid checkpoint for round {fit_config['fl_round']}"
+                            self.log_message(message, "INFO")
+                            last_round = None
+                else:
+                    message = f"Couldn't find valid checkpoint for client_id = {self.client_id}"
+                    self.log_message(message, "INFO")
 
         # Replace All "None" String Values with None Type (Necessary Workaround on Flower v1.1.0).
-        fit_config = {k: (None if v == "None" else v) for k, v in fit_config.items()}
         # Log the Training Configuration Received from the Server (If Logger is Enabled for "DEBUG" Level).
         message = "[Client {0} | FL Round {1}] Fit Config: {2}".format(
             self.client_id, fit_config["fl_round"], fit_config
@@ -115,6 +219,8 @@ class Client(NumPyClient):
         self.log_message(message, "INFO")
         # Start the Fit Model Timer.
         fit_time_start = perf_counter()
+        starting_time = time.ctime()
+
         # Fit the Local Updated Model With the Local Training Dataset.
         training_metrics_history = self.model.fit(
             x=self.x_train,
@@ -154,17 +260,41 @@ class Client(NumPyClient):
                     ][-1]
         # Add the Fit Time to the Training Metrics.
         training_metrics.update({"fit_time": fit_time_end})
+
+        t8 = Task(9 + 6 * (fit_config["fl_round"] - 1), dataflow_tag, "ClientTraining")
+        t8.add_dependency(
+            Dependency(
+                [
+                    "datasetload",
+                    "modelconfig",
+                    "optimizerconfig",
+                    "lossconfig",
+                    "trainingconfig",
+                ],
+                ["4", "5", "6", "7", str(8 + 6 * (fit_config["fl_round"] - 1))],
+            )
+        )
+        t8.begin()
+        # local_weights = {
+        #     "round": fit_config["fl_round"],
+        #     "client": self.client_id,
+        #     "local_weights": Binary(pickle.dumps(weight_tensors_list, protocol=2)),
+        # }
+        # db = self.get_connection_mongodb("localhost", 27017)
+        # _id = db.local_weights.insert_one(local_weights)
+
         to_dfanalyzer = [
+            fit_config["experiment_id"],
+            fit_config["server_id"],
             self.client_id,
             fit_config["fl_round"],
             fit_time_end,
             len(self.x_train),
-            str(global_model_current_parameters)[:10000],
             training_metrics["sparse_categorical_accuracy"],
             training_metrics["loss"],
             training_metrics.get("val_loss", None),
             training_metrics.get("val_sparse_categorical_accuracy", None),
-            str(self.get_parameters(fit_config))[:10000],
+            mongo_id,
             starting_time,
             time.ctime(),
         ]
@@ -172,6 +302,35 @@ class Client(NumPyClient):
         t8_output = DataSet("oClientTraining", [Element(to_dfanalyzer)])
         t8.add_dataset(t8_output)
         t8.end()
+
+        # result = None
+        # tries = 0
+        # fl_round = fit_config["fl_round"]
+        # experiment_id = fit_config["experiment_id"]
+        # server_id = fit_config["server_id"]
+        # checkpoint_frequency = int(fit_config["checkpoint_frequency"])
+        # if (fl_round%checkpoint_frequency == 0):
+        #     connection = connect(
+        #         hostname=monetdb_settings["hostname"],
+        #         port=monetdb_settings["port"],
+        #         username=monetdb_settings["username"],
+        #         password=monetdb_settings["password"],
+        #         database=monetdb_settings["database"],
+        #     )
+
+        #     cursor = connection.cursor()
+        #     message = f"Client {self.client_id} is waiting for round {fl_round} to be recorded"
+        #     self.log_message(message, "INFO")
+        #     while not result:
+        #         query = f"""SELECT check_if_last_round_is_recorded_fit_client({experiment_id}, {server_id}, {fl_round}, {self.client_id})"""
+        #         cursor.execute(operation=query)
+        #         connection.commit()
+        #         result = cursor.fetchone()
+
+        #         if result:
+        #             result = result[-1]
+        #         tries += 1
+        #         time.sleep(0.05)
 
         # Return the Model's Local Weights, Number of Training Examples, and Training Metrics to be Sent to the Server.
         return weight_tensors_list, num_training_examples, training_metrics
@@ -197,12 +356,12 @@ class Client(NumPyClient):
         )
         self.log_message(message, "INFO")
 
-        t11 = Task(
-            11 + 6 * (evaluate_config["fl_round"] - 1),
+        t12 = Task(
+            12 + 6 * (evaluate_config["fl_round"] - 1),
             dataflow_tag,
             "ClientEvaluation",
             dependency=Task(
-                10 + 6 * (evaluate_config["fl_round"] - 1),
+                11 + 6 * (evaluate_config["fl_round"] - 1),
                 dataflow_tag,
                 "EvaluationConfig",
             ),
@@ -210,7 +369,7 @@ class Client(NumPyClient):
 
         starting_time = time.ctime()
 
-        t11.begin()
+        t12.begin()
 
         # Start the Evaluate Model Timser.
         evaluate_time_start = perf_counter()
@@ -238,6 +397,8 @@ class Client(NumPyClient):
             metric_index += 1
 
         to_dfanalyzer = [
+            evaluate_config["experiment_id"],
+            evaluate_config["server_id"],
             self.client_id,
             evaluate_config["fl_round"],
             testing_metrics["loss"],
@@ -247,13 +408,45 @@ class Client(NumPyClient):
             starting_time,
             time.ctime(),
         ]
-        t11_output = DataSet("oClientEvaluation", [Element(to_dfanalyzer)])
-        t11.add_dataset(t11_output)
-        t11.end()
+        t12_output = DataSet("oClientEvaluation", [Element(to_dfanalyzer)])
+        t12.add_dataset(t12_output)
+        t12.end()
         # Add the Evaluate Time to the Testing Metrics.
         testing_metrics.update({"evaluate_time": evaluate_time_end})
         # Get the Loss Metric.
         loss = testing_metrics["loss"]
+
+        # result = None
+        # tries = 0
+        # fl_round = evaluate_config["fl_round"]
+        # experiment_id = evaluate_config["experiment_id"]
+        # server_id = evaluate_config["server_id"]
+
+        # checkpoint_frequency = int(evaluate_config["checkpoint_frequency"])
+        # if (fl_round%checkpoint_frequency == 0):
+        #     monetdb_settings = { k.replace("monetdb_",""): v for k, v in evaluate_config.items() if 'monetdb' in k}
+
+        #     connection = connect(
+        #         hostname=monetdb_settings["hostname"],
+        #         port=monetdb_settings["port"],
+        #         username=monetdb_settings["username"],
+        #         password=monetdb_settings["password"],
+        #         database=monetdb_settings["database"],
+        #     )
+
+        #     cursor = connection.cursor()
+        #     message = f"Client {self.client_id} is waiting for round {fl_round} to be recorded"
+        #     self.log_message(message, "INFO")
+        #     while not result:
+        #         query = f"""SELECT check_if_last_round_is_recorded_evaluation_client({experiment_id},{server_id},{fl_round}, {self.client_id})"""
+        #         cursor.execute(operation=query)
+        #         connection.commit()
+        #         result = cursor.fetchone()
+
+        #         if result:
+        #             result = result[-1]
+        #         tries += 1
+        #         time.sleep(0.05)
         # Return the Loss Metric, Number of Testing Examples, and Testing Metrics to be Sent to the Server.
         return loss, num_testing_examples, testing_metrics
 
@@ -526,8 +719,8 @@ class FlowerClient:
         cp.read(filenames=client_config_file, encoding="utf-8")
         ml_model_settings = self.get_attribute("ml_model_settings")
         ml_model = None
-        t4 = Task(4, dataflow_tag, "ModelConfig")
-        t4.begin()
+        t5 = Task(5, dataflow_tag, "ModelConfig")
+        t5.begin()
         attributes = [
             "model",
             "optimizer",
@@ -538,7 +731,9 @@ class FlowerClient:
             "steps_per_execution",
             "jit_compile",
         ]
-        to_dfanalyzer = [ml_model_settings.get(attr, 0) for attr in attributes]
+
+        to_dfanalyzer = [-1, -1]
+        to_dfanalyzer += [ml_model_settings.get(attr, 0) for attr in attributes]
 
         if ml_model_settings["model"] == "MobileNetV2":
             # Parse 'MobileNetV2 Settings'.
@@ -572,11 +767,11 @@ class FlowerClient:
 
         else:
             to_dfanalyzer += [None, 0, None, None, None, None, 0, None]
-        t4_input = DataSet("iModelConfig", [Element(to_dfanalyzer)])
-        t4.add_dataset(t4_input)
-        t4_output = DataSet("oModelConfig", [Element([])])
-        t4.add_dataset(t4_output)
-        t4.end()
+        t5_input = DataSet("iModelConfig", [Element(to_dfanalyzer)])
+        t5.add_dataset(t5_input)
+        t5_output = DataSet("oModelConfig", [Element([])])
+        t5.add_dataset(t5_output)
+        t5.end()
         # Unbind ConfigParser Object (Garbage Collector).
 
         # Preprocess x_train and x_test (MobileNetV2 Expects the [-1, 1] Pixel Values Range).
@@ -598,8 +793,9 @@ class FlowerClient:
         cp.read(filenames=client_config_file, encoding="utf-8")
         ml_model_settings = self.get_attribute("ml_model_settings")
         ml_model_optimizer = None
-        t5 = Task(5, dataflow_tag, "OptimizerConfig")
-        t5.begin()
+        t6 = Task(6, dataflow_tag, "OptimizerConfig")
+        t6.begin()
+        to_dfanalyzer = [-1, -1]
         if ml_model_settings["optimizer"] == "SGD":
             # Parse 'SGD Settings'.
             sgd_settings = self.parse_config_section(cp, "SGD Settings")
@@ -611,12 +807,14 @@ class FlowerClient:
                 name=sgd_settings["name"],
             )
             attributes = ["learning_rate", "momentum", "nesterov", "name"]
-            to_dfanalyzer = [sgd_settings.get(attr, None) for attr in attributes]
-            t5_input = DataSet("iOptimizerConfig", [Element(to_dfanalyzer)])
-            t5.add_dataset(t5_input)
-        t5_output = DataSet("oOptimizerConfig", [Element([])])
-        t5.add_dataset(t5_output)
-        t5.end()
+            to_dfanalyzer += [sgd_settings.get(attr, None) for attr in attributes]
+        else:
+            to_dfanalyzer += [None, None, None, None]
+        t6_input = DataSet("iOptimizerConfig", [Element(to_dfanalyzer)])
+        t6.add_dataset(t6_input)
+        t6_output = DataSet("oOptimizerConfig", [Element([])])
+        t6.add_dataset(t6_output)
+        t6.end()
         # Unbind ConfigParser Object (Garbage Collector).
         del cp
         return ml_model_optimizer
@@ -630,8 +828,9 @@ class FlowerClient:
         cp.read(filenames=client_config_file, encoding="utf-8")
         ml_model_settings = self.get_attribute("ml_model_settings")
         ml_model_loss_function = None
-        t6 = Task(6, dataflow_tag, "LossConfig")
-        t6.begin()
+        t7 = Task(7, dataflow_tag, "LossConfig")
+        t7.begin()
+        to_dfanalyzer = [-1, -1]
         if ml_model_settings["loss_function"] == "SparseCategoricalCrossentropy":
             # Parse 'SparseCategoricalCrossentropy Settings'.
             scc_settings = self.parse_config_section(
@@ -645,12 +844,14 @@ class FlowerClient:
                 name=scc_settings["name"],
             )
             attributes = ["from_logits", "ignore_class", "reduction", "name"]
-            to_dfanalyzer = [scc_settings.get(attr, None) for attr in attributes]
-            t6_input = DataSet("iLossConfig", [Element(to_dfanalyzer)])
-            t6.add_dataset(t6_input)
-        t6_output = DataSet("oLossConfig", [Element(to_dfanalyzer)])
-        t6.add_dataset(t6_output)
-        t6.end()
+            to_dfanalyzer += [scc_settings.get(attr, None) for attr in attributes]
+        else:
+            to_dfanalyzer += [None, None, None, None]
+        t7_input = DataSet("iLossConfig", [Element(to_dfanalyzer)])
+        t7.add_dataset(t7_input)
+        t7_output = DataSet("oLossConfig", [Element(to_dfanalyzer)])
+        t7.add_dataset(t7_output)
+        t7.end()
         # Unbind ConfigParser Object (Garbage Collector).
         del cp
         return ml_model_loss_function
@@ -776,19 +977,19 @@ def main() -> None:
     logger = fc.load_logger()
     fc.set_attribute("logger", logger)
     # Load ML Model's Private Dataset (x_train, y_train, x_test, and y_test).
-    t6 = Task(3, dataflow_tag, "DatasetLoad")
-    t6.begin()
+    t4 = Task(4, dataflow_tag, "DatasetLoad")
+    t4.begin()
     start = perf_counter()
 
     fc.load_ml_model_private_dataset()
 
     end = perf_counter()
-    to_dfanalyzer = [client_id, end - start]
-    t6_input = DataSet("iDatasetLoad", [Element(to_dfanalyzer)])
-    t6.add_dataset(t6_input)
-    t6_output = DataSet("oDatasetLoad", [Element([])])
-    t6.add_dataset(t6_output)
-    t6.end()
+    to_dfanalyzer = [-1, -1, client_id, end - start]
+    t4_input = DataSet("iDatasetLoad", [Element(to_dfanalyzer)])
+    t4.add_dataset(t4_input)
+    t4_output = DataSet("oDatasetLoad", [Element([])])
+    t4.add_dataset(t4_output)
+    t4.end()
     # Instantiate and Set ML Model.
     model = fc.instantiate_ml_model()
     fc.set_attribute("model", model)

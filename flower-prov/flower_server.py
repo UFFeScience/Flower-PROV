@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 from configparser import ConfigParser
-from flwr.common import Metrics, NDArrays, Parameters
+from flwr.common import Metrics, NDArrays, Parameters, ndarrays_to_parameters
 from flwr.server import Server, ServerConfig, SimpleClientManager, start_server
 from flwr.server.strategy import FedAvg, FedAvgM, Strategy
 from logging import FileHandler, Formatter, getLevelName, Logger, StreamHandler
@@ -24,16 +24,20 @@ from dfa_lib_python.task_status import TaskStatus
 from dfa_lib_python.extractor_extension import ExtractorExtension
 from dfa_lib_python.dependency import Dependency
 import time
-import pymonetdb
+
+from pymongo import MongoClient
+from bson.binary import Binary
+import pickle
 
 
 dataflow_tag = "flower-df"
 
 
 class FlowerServer:
-    def __init__(self, server_id: int, server_config_file: Path) -> None:
+    def __init__(self, experiment_id: int, server_config_file: Path) -> None:
         # Server's ID and Config File.
-        self.server_id = server_id
+        self.experiment_id = experiment_id
+        self.server_id = None
         self.server_config_file = server_config_file
         # Server's Config File Settings.
         self.general_settings = None
@@ -141,6 +145,70 @@ class FlowerServer:
         # Parse 'FL Settings' and Set Attributes.
         fl_settings = self.parse_config_section(cp, "FL Settings")
 
+        checkpoints_settings = cp["Checkpoints Settings"]
+        self.set_attribute("checkpoints_settings", checkpoints_settings)
+
+        monetdb_settings = cp["MonetDB Settings"]
+        self.set_attribute("monetdb_settings", monetdb_settings)
+
+        mongodb_settings = cp["MongoDB Settings"]
+        self.set_attribute("mongodb_settings", mongodb_settings)
+
+        conn = self.get_connection_monetdb()
+        cursor = conn.cursor()
+
+        cursor.execute(f"SELECT check_max_experiment_id();")
+
+        conn.commit()
+
+        max_experiment_id = cursor.fetchone()[0]
+        self.server_id = 0
+
+        if max_experiment_id != None:
+
+            self.experiment_id = max_experiment_id + 1
+
+            cursor.execute(f"SELECT check_ending_fl({self.experiment_id - 1});")
+
+            conn.commit()
+            ending_fl = cursor.fetchone()[0]
+
+            if ending_fl == False:
+                cursor.execute(f"SELECT check_max_server_id({self.experiment_id-1});")
+                conn.commit()
+                server_id = cursor.fetchone()[0]
+                self.server_id = server_id + 1
+                # cursor.execute(f"SELECT check_last_round_fl({self.experiment_id - 1});")
+                # conn.commit()
+                # last_round = cursor.fetchone()[0]
+                db = self.get_connection_mongodb()
+                result = list(
+                    db.checkpoints.find(
+                        {"experiment_id": {"$eq": self.experiment_id - 1}}
+                    )
+                    .sort([("round", -1), ("server_id", -1)])
+                    .limit(1)
+                )
+                if result:
+                    cursor.execute(
+                        f"SELECT get_num_checkpoints({self.experiment_id-1})"
+                    )
+                    # get count for checkpoints saved to mongodb and multiply by checkpoints_frequency to get the last round
+                    num_checkpoints = cursor.fetchone()[0]
+                    num_rounds = num_checkpoints * int(
+                        checkpoints_settings["checkpoint_frequency"]
+                    )
+                    fl_settings["num_rounds"] -= int(num_rounds)
+                self.experiment_id -= 1
+        else:
+            self.experiment_id = 0
+
+        cursor.close()
+        conn.close()
+
+        attributes = ["action", "min_clients_per_checkpoint"]
+        to_dfanalyzer = [checkpoints_settings.get(attr, None) for attr in attributes]
+
         attributes = [
             "num_rounds",
             "round_timeout_in_seconds",
@@ -154,7 +222,9 @@ class FlowerServer:
             "min_evaluate_clients",
             "min_available_clients",
         ]
-        to_dfanalyzer = [fl_settings.get(attr, None) for attr in attributes]
+
+        to_dfanalyzer += [fl_settings.get(attr, None) for attr in attributes]
+
         t1 = Task(1, dataflow_tag, "ServerConfig")
 
         t1.begin()
@@ -175,6 +245,7 @@ class FlowerServer:
             [
                 Element(
                     [
+                        self.experiment_id,
                         self.server_id,
                         str(grpc_settings["grpc_listen_ip_address"])
                         + str(grpc_settings["grpc_listen_port"]),
@@ -248,19 +319,19 @@ class FlowerServer:
                     testing_hyper_parameters_dynamic_adjustment_settings,
                 )
             # If MonetDB is the Hyper-parameters Adjustments Eligibility Controller...
-            if (
-                hyper_parameters_dynamic_adjustment_settings[
-                    "adjustments_eligibility_controller"
-                ]
-                == "MonetDB"
-            ):
+            # if (
+            #     hyper_parameters_dynamic_adjustment_settings[
+            #         "adjustments_eligibility_controller"
+            #     ]
+            #     == "MonetDB"
+            # ):
 
-                ###########################
-                # -------- MODIFIED --------
-                # Parse 'MonetDB Settings' and Set Attributes.
-                monetdb_settings = cp["MonetDB Settings"]
-                self.set_attribute("monetdb_settings", monetdb_settings)
-                ###########################
+            #     ###########################
+            #     # -------- MODIFIED --------
+            #     # Parse 'MonetDB Settings' and Set Attributes.
+            #     monetdb_settings = cp["MonetDB Settings"]
+            #     self.set_attribute("monetdb_settings", monetdb_settings)
+            #     ###########################
 
         # Unbind ConfigParser Object (Garbage Collector).
         del cp
@@ -269,7 +340,7 @@ class FlowerServer:
         logger = None
         general_settings = self.get_attribute("general_settings")
         if general_settings["enable_logging"]:
-            logger_name = "FlowerServer_" + str(self.get_attribute("server_id"))
+            logger_name = "FlowerServer_" + str(self.get_attribute("experiment_id"))
             logging_settings = self.get_attribute("logging_settings")
             logger = Logger(name=logger_name, level=logging_settings["level"])
             formatter = Formatter(
@@ -308,20 +379,99 @@ class FlowerServer:
             elif message_level == "CRITICAL":
                 logger.critical(msg=message)
 
-    @staticmethod
-    def load_initial_global_model_parameters() -> Optional[Parameters]:
+    def load_initial_global_model_parameters(self, id_weights_mongo):
         """Server-side parameter initialization. A powerful mechanism which can be used, for example:
         \n - To resume the training from a previously saved checkpoint;
         \n - To implement hybrid approaches, such as to fine-tune a pre-trained model using federated learning.
-        \n If no parameters are returned, the server will randomly select one client and ask its parameters."""
-        # TODO: To Implement (If Ever Needed)...
-        return None
+        \n If no parameters are returned, the server will randomly select one client and ask its parameters.
+        """
+
+        starting_time = time.ctime()
+        loading_parameters_start = perf_counter()
+        t2 = Task(2, dataflow_tag, "LoadGlobalWeights")
+        t2.begin()
+
+        params = None
+        if self.server_id != 0:
+
+            connection = self.get_connection_monetdb()
+            cursor = connection.cursor()
+            cursor.execute(f"SELECT check_ending_fl({self.experiment_id});")
+            connection.commit()
+            ending_fl = cursor.fetchone()[0]
+
+            if ending_fl == False:
+
+                # cursor.execute(f"SELECT check_last_round_fl({self.experiment_id});")
+                # connection.commit()
+                db = self.get_connection_mongodb()
+                # last_round = cursor.fetchone()[0]
+                # pesos = db.checkpoints.find_one({"$and": [{"round": {"$eq": last_round}}, {"experiment_id": {"$eq": self.experiment_id}}]})
+                pesos = list(
+                    db.checkpoints.find({"experiment_id": {"$eq": self.experiment_id}})
+                    .sort([("round", -1), ("server_id", -1)])
+                    .limit(1)
+                )
+                if pesos:
+                    params = pickle.loads(pesos[0]["global_weights"])
+                    message = "[Server {0} | FL Round {1}] Loaded Global Weights from Server {2} - round {3}.".format(
+                        self.get_attribute("server_id"),
+                        self.get_attribute("fl_round"),
+                        self.server_id - 1,
+                        pesos[0]["round"],
+                    )
+                    self.log_message(message, "INFO")
+                else:
+                    message = "[Server {0} | FL Round {1}] No Global Weights Found for Server {2}.".format(
+                        self.get_attribute("server_id"),
+                        self.get_attribute("fl_round"),
+                        self.server_id - 1,
+                    )
+                    self.log_message(message, "INFO")
+
+            cursor.close()
+            connection.close()
+        if id_weights_mongo:
+            db = self.get_connection_mongodb()
+            pesos = db.checkpoints.find_one({"_id": {"$eq": id_weights_mongo}})
+            if pesos:
+                params = pickle.loads(pesos["global_weights"])
+                message = "[Server {0} | FL Round {1}] Loaded Global Weights from Server {2} - round {3}.".format(
+                    self.get_attribute("server_id"),
+                    self.get_attribute("fl_round"),
+                    pesos["server_id"],
+                    pesos["round"],
+                )
+                self.log_message(message, "INFO")
+            else:
+                message = "[Server {0} | FL Round {1}] No Global Weights Found.".format(
+                    self.get_attribute("server_id"), self.get_attribute("fl_round")
+                )
+                self.log_message(message, "INFO")
+        ending_time = time.ctime()
+        loading_parameters_end = perf_counter() - loading_parameters_start
+
+        to_dfanalyzer = [
+            self.get_attribute("experiment_id"),
+            self.get_attribute("server_id"),
+            starting_time,
+            ending_time,
+            loading_parameters_end,
+        ]
+        t2_input = DataSet("iLoadGlobalWeights", [Element(to_dfanalyzer)])
+        t2.add_dataset(t2_input)
+        to_dfanalyzer = [bool(params)]
+        t2_output = DataSet("oLoadGlobalWeights", [Element(to_dfanalyzer)])
+        t2.add_dataset(t2_output)
+        t2.end()
+
+        return ndarrays_to_parameters(params) if params else None
 
     def load_initial_fit_config(self) -> dict:
         training_hyper_parameters_settings = self.get_attribute(
             "training_hyper_parameters_settings"
         )
-        fit_config = {"fl_round": 0}
+        fit_config = {"fl_round": 0, "server_id": 0}
         fit_config.update(training_hyper_parameters_settings)
         # Log the Initial Training Configuration (If Logger is Enabled for "DEBUG" Level).
         message = "[Server {0} | FL Round {1}] Initial Fit Config: {2}".format(
@@ -334,7 +484,7 @@ class FlowerServer:
         testing_hyper_parameters_settings = self.get_attribute(
             "testing_hyper_parameters_settings"
         )
-        evaluate_config = {"fl_round": 0}
+        evaluate_config = {"fl_round": 0, "server_id": 0}
         evaluate_config.update(testing_hyper_parameters_settings)
         # Log the Initial Testing Configuration (If Logger is Enabled for "DEBUG" Level).
         message = "[Server {0} | FL Round {1}] Initial Evaluate Config: {2}".format(
@@ -360,15 +510,16 @@ class FlowerServer:
     def instantiate_simple_client_manager() -> SimpleClientManager:
         return SimpleClientManager()
 
-    @staticmethod
+    # @staticmethod
     def evaluate_fn(
-        fl_round: int, global_model_parameters: NDArrays, evaluate_config: dict
+        self, fl_round: int, global_model_parameters: NDArrays, evaluate_config: dict
     ) -> Optional[Metrics]:
         """Server-side (Centralized) evaluation function called by Flower after every training round.
         \nRequires a server-side dataset to evaluate the newly aggregated model without sending it to the Clients.
         \nThe 'losses_centralized' and 'metrics_centralized' will only contain values using this centralized evaluation.
         \nAlternative: Client-side (Federated) evaluation."""
-        # TODO: To Implement (If Ever Needed)...
+
+        self.global_model_parameters = global_model_parameters
         return None
 
     def is_enabled_hyper_parameters_dynamic_adjustment(self, phase: str) -> bool:
@@ -411,27 +562,17 @@ class FlowerServer:
         if adjustments_eligibility_query is None:
             return False
 
-        connection = connect(
-            hostname=monetdb_settings["hostname"],
-            port=monetdb_settings["port"],
-            username=monetdb_settings["username"],
-            password=monetdb_settings["password"],
-            database=monetdb_settings["database"],
-        )
-
+        connection = self.get_connection_monetdb()
         cursor = connection.cursor()
 
         result = None
         tries = 0
         fl_round = self.get_attribute("fl_round")
-        while tries < 100 and not result:
-            cursor.execute(
-                monetdb_settings["check_if_last_round_is_already_recorded"].format(
-                    fl_round
-                )
-            )
-            connection.commit()
+        while not result:
+            query = f"""SELECT check_if_last_round_is_already_recorded({self.experiment_id},{self.server_id},{fl_round})"""
+            cursor.execute(operation=query)
             result = cursor.fetchone()
+            connection.commit()
 
             if result:
                 result = result[-1]
@@ -443,6 +584,7 @@ class FlowerServer:
             query_result = int(cursor.fetchone()[0])
         else:
             query_result = 0
+
         cursor.close()
         connection.close()
         is_fl_round_eligible = True if query_result == 1 else False
@@ -549,6 +691,23 @@ class FlowerServer:
             self.log_message(message, "INFO")
         return config
 
+    def get_connection_mongodb(self):
+        client = MongoClient(
+            host=self.mongodb_settings["hostname"],
+            port=int(self.mongodb_settings["port"]),
+        )
+        return client.flowerprov
+
+    def get_connection_monetdb(self):
+        connection = connect(
+            hostname=self.monetdb_settings["hostname"],
+            port=self.monetdb_settings["port"],
+            username=self.monetdb_settings["username"],
+            password=self.monetdb_settings["password"],
+            database=self.monetdb_settings["database"],
+        )
+        return connection
+
     def on_fit_config_fn(self, fl_round: int) -> Optional[dict]:
         """Training configuration function called by Flower before each training round."""
         # Update the Current FL Round (Necessary Workaround on Flower v1.1.0).
@@ -563,7 +722,13 @@ class FlowerServer:
         # Get the Training Configuration.
         fit_config = self.get_attribute("fit_config")
         # Update the Training Configuration's Current FL Round.
-        fit_config.update({"fl_round": self.get_attribute("fl_round")})
+        fit_config.update(
+            {
+                "fl_round": self.get_attribute("fl_round"),
+                "experiment_id": self.get_attribute("experiment_id"),
+                "server_id": self.get_attribute("server_id"),
+            }
+        )
         # Dynamically Adjust the Training Configuration's Hyper-parameters (If Enabled and Eligible).
         dynamically_adjusted = False
         if self.is_enabled_hyper_parameters_dynamic_adjustment("train"):
@@ -585,23 +750,33 @@ class FlowerServer:
         # Replace All Values of None Type to "None" String (Necessary Workaround on Flower v1.1.0).
         fit_config = {k: ("None" if v is None else v) for k, v in fit_config.items()}
 
-        t7 = Task(7 + 6 * (fl_round - 1), dataflow_tag, "TrainingConfig")
+        t8 = Task(8 + 6 * (fl_round - 1), dataflow_tag, "TrainingConfig")
         if fl_round == 1:
-            t7.add_dependency(
+            t8.add_dependency(
                 Dependency(
-                    ["serverconfig", "strategy", "serverevaluationaggregation"],
-                    ["1", "2", "0"],
+                    [
+                        "serverconfig",
+                        "loadglobalweights",
+                        "strategy",
+                        "serverevaluationaggregation",
+                    ],
+                    ["1", "2", "3", "0"],
                 )
             )
         else:
-            t7.add_dependency(
+            t8.add_dependency(
                 Dependency(
-                    ["serverconfig", "strategy", "serverevaluationaggregation"],
-                    ["1", "2", str(12 + 6 * (fl_round - 2))],
+                    [
+                        "serverconfig",
+                        "loadglobalweights",
+                        "strategy",
+                        "serverevaluationaggregation",
+                    ],
+                    ["1", "2", "3", str(13 + 6 * (fl_round - 2))],
                 )
             )
 
-        t7.begin()
+        t8.begin()
 
         attributes = [
             "shuffle",
@@ -614,20 +789,61 @@ class FlowerServer:
         ]
 
         to_dfanalyzer = [
+            self.get_attribute("experiment_id"),
+            self.get_attribute("server_id"),
             fl_round,
             starting_time,
             time.ctime(),
         ] + [fit_config.get(attr, 0) for attr in attributes]
 
-        t7_input = DataSet("iTrainingConfig", [Element(to_dfanalyzer)])
-        t7.add_dataset(t7_input)
-        t7_output = DataSet(
-            "oTrainingConfig",
-            [Element([fl_round, dynamically_adjusted])],
-        )
-        t7.add_dataset(t7_output)
-        t7.end()
+        t8_input = DataSet("iTrainingConfig", [Element(to_dfanalyzer)])
 
+        t8.add_dataset(t8_input)
+        t8_output = DataSet(
+            "oTrainingConfig",
+            [
+                Element(
+                    [
+                        self.get_attribute("experiment_id"),
+                        self.get_attribute("server_id"),
+                        fl_round,
+                        dynamically_adjusted,
+                    ]
+                )
+            ],
+        )
+        t8.add_dataset(t8_output)
+        t8.end()
+
+        mongodb = {
+            "hostname": self.mongodb_settings["hostname"],
+            "port": self.mongodb_settings["port"],
+        }
+
+        monetdb = {
+            "hostname": self.monetdb_settings["hostname"],
+            "port": self.monetdb_settings["port"],
+            "username": self.monetdb_settings["username"],
+            "password": self.monetdb_settings["password"],
+            "database": self.monetdb_settings["database"],
+        }
+
+        fit_config.update(
+            {
+                "action": self.checkpoints_settings["action"],
+                "checkpoint_frequency": self.checkpoints_settings[
+                    "checkpoint_frequency"
+                ],
+                "experiment_id": self.get_attribute("experiment_id"),
+                "monetdb_hostname": monetdb["hostname"],
+                "monetdb_port": monetdb["port"],
+                "monetdb_username": monetdb["username"],
+                "monetdb_password": monetdb["password"],
+                "monetdb_database": monetdb["database"],
+                "mongodb_hostname": mongodb["hostname"],
+                "mongodb_port": mongodb["port"],
+            }
+        )
         # Return the Training Configuration to be Sent to All Participating Clients.
         return fit_config
 
@@ -643,7 +859,13 @@ class FlowerServer:
         # Get the Testing Configuration.
         evaluate_config = self.get_attribute("evaluate_config")
         # Update the Testing Configuration's Current FL Round.
-        evaluate_config.update({"fl_round": self.get_attribute("fl_round")})
+        evaluate_config.update(
+            {
+                "fl_round": self.get_attribute("fl_round"),
+                "experiment_id": self.get_attribute("experiment_id"),
+                "server_id": self.get_attribute("server_id"),
+            }
+        )
         # Dynamically Adjust the Testing Configuration's Hyper-parameters (If Enabled and Eligible).
         if self.is_enabled_hyper_parameters_dynamic_adjustment("test"):
             if self.is_fl_round_eligible_for_hyper_parameters_dynamic_adjustment(
@@ -667,43 +889,86 @@ class FlowerServer:
         }
         # Return the Testing Configuration to be Sent to All Participating Clients.
 
-        t10 = Task(
-            10 + 6 * (fl_round - 1),
+        t11 = Task(
+            11 + 6 * (fl_round - 1),
             dataflow_tag,
             "EvaluationConfig",
             dependency=Task(
-                9 + 6 * (fl_round - 1), dataflow_tag, "ServerTrainingAggregation"
+                10 + 6 * (fl_round - 1), dataflow_tag, "ServerTrainingAggregation"
             ),
         )
-        t10.begin()
+        t11.begin()
         attributes = ["batch_size", "steps"]
-        to_dfanalyzer = [evaluate_config.get(attr, 0) for attr in attributes]
+        to_dfanalyzer = [
+            self.get_attribute("experiment_id"),
+            self.get_attribute("server_id"),
+            fl_round,
+        ] + [evaluate_config.get(attr, 0) for attr in attributes]
 
-        t10_input = DataSet("iEvaluationConfig", [Element(to_dfanalyzer)])
-        t10.add_dataset(t10_input)
-        t10_output = DataSet("oEvaluationConfig", [Element([])])
-        t10.add_dataset(t10_output)
-        t10.end()
+        t11_input = DataSet("iEvaluationConfig", [Element(to_dfanalyzer)])
+        t11.add_dataset(t11_input)
+        t11_output = DataSet("oEvaluationConfig", [Element([])])
+        t11.add_dataset(t11_output)
+        t11.end()
+
+        mongodb = {
+            "hostname": self.mongodb_settings["hostname"],
+            "port": self.mongodb_settings["port"],
+        }
+
+        monetdb = {
+            "hostname": self.monetdb_settings["hostname"],
+            "port": self.monetdb_settings["port"],
+            "username": self.monetdb_settings["username"],
+            "password": self.monetdb_settings["password"],
+            "database": self.monetdb_settings["database"],
+        }
+
+        evaluate_config.update(
+            {
+                "action": self.checkpoints_settings["action"],
+                "checkpoint_frequency": self.checkpoints_settings[
+                    "checkpoint_frequency"
+                ],
+                "experiment_id": self.get_attribute("experiment_id"),
+                "monetdb_hostname": monetdb["hostname"],
+                "monetdb_port": monetdb["port"],
+                "monetdb_username": monetdb["username"],
+                "monetdb_password": monetdb["password"],
+                "monetdb_database": monetdb["database"],
+                "mongodb_hostname": mongodb["hostname"],
+                "mongodb_port": mongodb["port"],
+            }
+        )
 
         # Return the Testing Configuration to be Sent to All Participating Clients.
         return evaluate_config
+
+    def save_checkpoint(self, payload):
+        starting_time = perf_counter()
+        db = self.get_connection_mongodb()
+        _id = db.checkpoints.insert_one(payload)
+        mongo_id = _id.inserted_id
+        insertion_time = perf_counter() - starting_time
+
+        return mongo_id, insertion_time
 
     def fit_metrics_aggregation_fn(
         self, training_metrics: List[Tuple[int, Metrics]]
     ) -> Optional[Metrics]:
         """Metrics aggregation function called by Flower after every training round."""
-        t9 = Task(
-            9 + 6 * (self.get_attribute("fl_round") - 1),
+        t10 = Task(
+            10 + 6 * (self.get_attribute("fl_round") - 1),
             dataflow_tag,
             "ServerTrainingAggregation",
             dependency=Task(
-                8 + 6 * (self.get_attribute("fl_round") - 1),
+                9 + 6 * (self.get_attribute("fl_round") - 1),
                 dataflow_tag,
                 "ClientTraining",
             ),
         )
         starting_time = time.ctime()
-        t9.begin()
+        t10.begin()
 
         # Get the Total Number of Participating Clients.
         total_num_clients = len(training_metrics)
@@ -743,21 +1008,206 @@ class FlowerServer:
         )
         self.log_message(message, "INFO")
 
+        ### Check client loss
+
+        fl_round = self.get_attribute("fl_round")
+        experiment_id = self.get_attribute("experiment_id")
+        server_id = self.get_attribute("server_id")
+        client_loss = None
+        mongo_id = None
+        insertion_time = None
+        loaded_weights = False
+        consistent = None
+        checkpoint_time = None
+        if not self.checkpoints_settings["action"].lower().startswith("no"):
+            checkpoint_time_start = perf_counter()
+            if total_num_clients < int(
+                self.checkpoints_settings["min_clients_per_checkpoint"]
+            ):
+                client_loss = True
+            else:
+                client_loss = False
+
+            result = None
+            connection = self.get_connection_monetdb()
+            cursor = connection.cursor()
+            checkpoint_frequency = int(
+                self.checkpoints_settings["checkpoint_frequency"]
+            )
+            if (
+                fl_round > 2
+                and self.checkpoints_settings["action"] == "rollback"
+                and (fl_round % checkpoint_frequency == 0)
+            ):
+                message = f"Checking for rollback in round {fl_round}"
+                self.log_message(message, "INFO")
+                if not client_loss:
+                    query = f"""SELECT get_last_round_load_checkpoint({experiment_id}, {server_id});"""
+                    cursor.execute(operation=query)
+                    result = cursor.fetchone()
+                    last_round_checkpoint = result[0] if result[0] else 1
+                    query = f"""SELECT get_client_loss_between_rounds({experiment_id}, {server_id}, {last_round_checkpoint});"""
+                    cursor.execute(operation=query)
+                    client_loss_between_rounds = bool(cursor.fetchone()[0])
+                    if client_loss_between_rounds:
+                        db = self.get_connection_mongodb()
+                        # pesos = db.checkpoints.find_one({"$and": [{"round": {"$eq": last_round}}, {"experiment_id": {"$eq": experiment_id}}, {"server_id": {"$eq": server_id}}]})
+                        pesos = list(
+                            db.checkpoints.find(
+                                {
+                                    "$and": [
+                                        {"experiment_id": {"$eq": experiment_id}},
+                                        {
+                                            "server_id": {"$eq": server_id},
+                                            "consistent": {"$eq": True},
+                                        },
+                                    ]
+                                }
+                            )
+                            .sort([("round", -1)])
+                            .limit(1)
+                        )
+                        if pesos:
+                            # params = pickle.loads([p for p in pesos][0]["global_weights"])
+                            params = pickle.loads(pesos[0]["global_weights"])
+
+                            message = f"ROLLBACK! Using weights from round {pesos[0]['round']} in round {fl_round}"
+                            self.log_message(message, "INFO")
+                            self.set_attribute(
+                                "global_model_parameters",
+                                params,
+                            )
+                            loaded_weights = True
+
+                        else:
+                            message = (
+                                f"Couldn't find valid checkpoint for round {fl_round}"
+                            )
+                            self.log_message(message, "INFO")
+                            message = f"Inserting checkpoint for round {fl_round}"
+                            self.log_message(message, "INFO")
+                            consistent = False
+                            checkpoints = {
+                                "round": self.get_attribute("fl_round"),
+                                "experiment_id": self.get_attribute("experiment_id"),
+                                "server_id": self.get_attribute("server_id"),
+                                "global_weights": Binary(
+                                    pickle.dumps(
+                                        self.global_model_parameters, protocol=4
+                                    )
+                                ),
+                                "consistent": consistent,
+                            }
+
+                            mongo_id, insertion_time = self.save_checkpoint(checkpoints)
+
+                    else:
+                        message = (
+                            f"Inserting consistent checkpoint for round {fl_round}"
+                        )
+                        self.log_message(message, "INFO")
+                        consistent = True
+                        checkpoints = {
+                            "round": self.get_attribute("fl_round"),
+                            "experiment_id": self.get_attribute("experiment_id"),
+                            "server_id": self.get_attribute("server_id"),
+                            "global_weights": Binary(
+                                pickle.dumps(self.global_model_parameters, protocol=4)
+                            ),
+                            "consistent": consistent,
+                        }
+
+                        mongo_id, insertion_time = self.save_checkpoint(checkpoints)
+
+                else:
+                    message = f"Client missing at round {self.fl_round}! Waiting return to execute rollback."
+                    message = f"Inserting checkpoint for round {fl_round}"
+                    consistent = False
+                    self.log_message(message, "INFO")
+                    checkpoints = {
+                        "round": self.get_attribute("fl_round"),
+                        "experiment_id": self.get_attribute("experiment_id"),
+                        "server_id": self.get_attribute("server_id"),
+                        "global_weights": Binary(
+                            pickle.dumps(self.global_model_parameters, protocol=4)
+                        ),
+                        "consistent": consistent,
+                    }
+
+                    mongo_id, insertion_time = self.save_checkpoint(checkpoints)
+
+                cursor.close()
+                connection.close()
+
+            elif self.checkpoints_settings["action"] == "different_models" and (
+                fl_round % checkpoint_frequency == 0
+            ):
+                query = f"""SELECT get_last_round_write_checkpoint({experiment_id}, {server_id});"""
+                cursor.execute(operation=query)
+                result = cursor.fetchone()
+                last_round_checkpoint = result[0] if result[0] else 1
+                query = f"""SELECT get_client_loss_between_rounds({experiment_id}, {server_id}, {last_round_checkpoint});"""
+                cursor.execute(operation=query)
+                client_loss_between_rounds = bool(cursor.fetchone()[0])
+                if not client_loss_between_rounds and not client_loss:
+                    consistent = True
+                    message = f"Inserting checkpoint for round {fl_round}"
+                    self.log_message(message, "INFO")
+                    checkpoints = {
+                        "round": self.get_attribute("fl_round"),
+                        "experiment_id": self.get_attribute("experiment_id"),
+                        "server_id": self.get_attribute("server_id"),
+                        "global_weights": Binary(
+                            pickle.dumps(self.global_model_parameters, protocol=4)
+                        ),
+                        "consistent": consistent,
+                    }
+
+                    mongo_id, insertion_time = self.save_checkpoint(checkpoints)
+
+            elif fl_round % checkpoint_frequency == 0:
+                consistent = None
+                message = f"Inserting checkpoint for round {fl_round}"
+                self.log_message(message, "INFO")
+                checkpoints = {
+                    "round": self.get_attribute("fl_round"),
+                    "experiment_id": self.get_attribute("experiment_id"),
+                    "server_id": self.get_attribute("server_id"),
+                    "global_weights": Binary(
+                        pickle.dumps(self.global_model_parameters, protocol=4)
+                    ),
+                    "consistent": consistent,
+                }
+
+                mongo_id, insertion_time = self.save_checkpoint(checkpoints)
+
+            checkpoint_time = perf_counter() - checkpoint_time_start
+
         to_dfanalyzer = [
+            self.get_attribute("experiment_id"),
+            self.get_attribute("server_id"),
             self.get_attribute("fl_round"),
             total_num_clients,
+            client_loss,
             total_num_examples,
             aggregated_metrics["sparse_categorical_accuracy"],
             aggregated_metrics["loss"],
             aggregated_metrics["val_sparse_categorical_accuracy"],
             aggregated_metrics["val_loss"],
+            mongo_id,
+            consistent,
+            loaded_weights,
+            insertion_time,
+            checkpoint_time,
             aggregated_metrics["fit_time"],
             starting_time,
             time.ctime(),
         ]
-        t9_output = DataSet("oServerTrainingAggregation", [Element(to_dfanalyzer)])
-        t9.add_dataset(t9_output)
-        t9.end()
+
+        t10_output = DataSet("oServerTrainingAggregation", [Element(to_dfanalyzer)])
+        t10.add_dataset(t10_output)
+        t10.end()
+
         # Return the Aggregated Training Metrics.
         return aggregated_metrics
 
@@ -766,19 +1216,19 @@ class FlowerServer:
     ) -> Optional[Metrics]:
         """Metrics aggregation function called by Flower after every testing round."""
         # Get the Total Number of Participating Clients.
-        t12 = Task(
-            12 + 6 * (self.get_attribute("fl_round") - 1),
+        t13 = Task(
+            13 + 6 * (self.get_attribute("fl_round") - 1),
             dataflow_tag,
             "ServerEvaluationAggregation",
             dependency=Task(
-                11 + 6 * (self.get_attribute("fl_round") - 1),
+                12 + 6 * (self.get_attribute("fl_round") - 1),
                 dataflow_tag,
                 "clientevaluation",
             ),
         )
 
         starting_time = time.ctime()
-        t12.begin()
+        t13.begin()
 
         total_num_clients = len(testing_metrics)
         # Get the Testing Metrics Names.
@@ -817,8 +1267,41 @@ class FlowerServer:
         )
         self.log_message(message, "INFO")
 
+        ### Check client loss
+        fl_round = self.get_attribute("fl_round")
+        experiment_id = self.get_attribute("experiment_id")
+        server_id = self.get_attribute("server_id")
+        client_loss = None
+        # if (fl_round%int(self.checkpoints_settings["checkpoint_frequency"]) == 0):
+        #     message = f"Checking client loss in round {fl_round}"
+        #     self.log_message(message, "INFO")
+        #     connection = self.get_connection_monetdb()
+        #     cursor = connection.cursor()
+        #     if fl_round > 1:
+        #         result = None
+        #         tries = 0
+        #         while not result:
+        #             query = f"""SELECT check_if_last_round_is_already_recorded_evaluation({experiment_id}, {server_id}, {fl_round})"""
+        #             cursor.execute(operation=query)
+        #             result = cursor.fetchone()
+
+        #             if result:
+        #                 result = result[-1]
+        #             tries += 1
+        #             time.sleep(0.05)
+
+        #         if result:
+        #             query = f"""SELECT check_client_loss_evaluation({experiment_id}, {server_id}, {fl_round}, { int(self.checkpoints_settings["min_clients_per_checkpoint"])})"""
+        #             cursor.execute(operation=query)
+        #             client_loss = bool(cursor.fetchone()[0])
+        #         cursor.close()
+        #         connection.close()
+
         to_dfanalyzer = [
+            self.get_attribute("experiment_id"),
+            self.get_attribute("server_id"),
             self.get_attribute("fl_round"),
+            client_loss,
             total_num_clients,
             total_num_examples,
             aggregated_metrics["sparse_categorical_accuracy"],
@@ -828,9 +1311,48 @@ class FlowerServer:
             time.ctime(),
         ]
 
-        t12_output = DataSet("oServerEvaluationAggregation", [Element(to_dfanalyzer)])
-        t12.add_dataset(t12_output)
-        t12.end()
+        t13_output = DataSet("oServerEvaluationAggregation", [Element(to_dfanalyzer)])
+        t13.add_dataset(t13_output)
+        t13.end()
+
+        # if fl_round > 2 and self.checkpoints_settings["action"]=="rollback" and (fl_round%int(self.checkpoints_settings["checkpoint_frequency"]) == 0):
+        #     message = f"Checking for rollback in round {fl_round}"
+        #     self.log_message(message, "INFO")
+        #     connection = self.get_connection_monetdb()
+        #     cursor = connection.cursor()
+
+        #     query = f"""SELECT get_last_round_with_all_clients_fit({experiment_id}, {server_id})"""
+        #     cursor.execute(operation=query)
+        #     last_round = int(cursor.fetchone()[0])
+        #     if fl_round != last_round:
+        #         # query = f"""SELECT check_client_loss_fit({experiment_id}, {fl_round}, { int(self.checkpoints_settings["min_clients_per_checkpoint"])})"""
+        #         # cursor.execute(operation=query)
+        #         # client_loss = bool(cursor.fetchone()[0])
+
+        #         if not client_loss:
+        #             db = self.get_connection_mongodb()
+        #             # pesos = db.checkpoints.find_one({"$and": [{"round": {"$eq": last_round}}, {"experiment_id": {"$eq": experiment_id}}, {"server_id": {"$eq": server_id}}]})
+        #             pesos = db.checkpoints.find({"$and": [{"experiment_id": {"$eq": experiment_id}}, {"server_id": {"$eq": server_id}}]}).sort([("round", -1)]).limit(1)
+        #             params = pickle.loads(pesos["global_weights"])
+        #             if params:
+        #                 message = f"ROLLBACK! Using weights from round {pesos['round']} in round {fl_round}"
+        #                 self.log_message(message, "INFO")
+        #                 self.set_attribute(
+        #                     "global_model_parameters",
+        #                     params,
+        #                 )
+
+        #             else:
+        #                 message = f"Couldn't find valid checkpoint for round {fl_round}"
+        #                 self.log_message(message, "INFO")
+        #                 last_round = None
+        #         else:
+        #             message = f"Client missing in {fl_round}! Waiting return to execute rollback."
+        #             self.log_message(message, "INFO")
+
+        #     cursor.close()
+        #     connection.close()
+
         # Return the Aggregated Testing Metrics.
         return aggregated_metrics
 
@@ -843,9 +1365,9 @@ class FlowerServer:
         cp.read(filenames=server_config_file, encoding="utf-8")
         fl_settings = self.get_attribute("fl_settings")
         server_aggregation_strategy = None
-        t2 = Task(2, dataflow_tag, "Strategy")
+        t3 = Task(3, dataflow_tag, "Strategy")
 
-        t2.begin()
+        t3.begin()
         if fl_settings["server_aggregation_strategy"] == "FedAvg":
             # FedAvg - Federated Averaging Aggregation Strategy.
             server_aggregation_strategy = FedAvg(
@@ -864,8 +1386,8 @@ class FlowerServer:
                 fit_metrics_aggregation_fn=self.fit_metrics_aggregation_fn,
                 evaluate_metrics_aggregation_fn=self.evaluate_metrics_aggregation_fn,
             )
-            t2_input = DataSet("iStrategy", [Element([0, 0])])
-            t2.add_dataset(t2_input)
+            t3_input = DataSet("iStrategy", [Element([0, 0])])
+            t3.add_dataset(t3_input)
 
         elif fl_settings["server_aggregation_strategy"] == "FedAvgM":
             # Parse 'FedAvgM Settings'.
@@ -892,11 +1414,11 @@ class FlowerServer:
 
             attributes = ["server_learning_rate", "server_momentum"]
             to_dfanalyzer = [fed_avg_m_settings.get(attr, None) for attr in attributes]
-            t2_input = DataSet("iStrategy", [Element(to_dfanalyzer)])
-            t2.add_dataset(t2_input)
-        t2_output = DataSet("oStrategy", [Element([])])
-        t2.add_dataset(t2_output)
-        t2.end()
+            t3_input = DataSet("iStrategy", [Element(to_dfanalyzer)])
+            t3.add_dataset(t3_input)
+        t3_output = DataSet("oStrategy", [Element([])])
+        t3.add_dataset(t3_output)
+        t3.end()
         # Unbind ConfigParser Object (Garbage Collector).
         del cp
         return server_aggregation_strategy
@@ -926,7 +1448,9 @@ class FlowerServer:
         ssl_certificates = None
         if fl_settings["enable_ssl"]:
             ssl_settings = self.get_attribute("ssl_settings")
-            prefix_path = Path("./FlowerServer_" + str(self.get_attribute("server_id")))
+            prefix_path = Path(
+                "./FlowerServer_" + str(self.get_attribute("experiment_id"))
+            )
             ca_certificate_bytes = prefix_path.joinpath(
                 ssl_settings["ca_certificate_file"]
             ).read_bytes()
@@ -967,399 +1491,6 @@ class FlowerServer:
 def main() -> None:
     # Begin.
 
-    ##########
-    # DfAnalyzer Instrumentation
-    df = Dataflow(dataflow_tag)
-
-    tf1 = Transformation("ServerConfig")
-    tf1_input = Set(
-        "iServerConfig",
-        SetType.INPUT,
-        [
-            Attribute("server_id", AttributeType.NUMERIC),
-            Attribute("address", AttributeType.TEXT),
-            Attribute("max_message_length_in_bytes", AttributeType.TEXT),
-            Attribute("num_rounds", AttributeType.NUMERIC),
-            Attribute("round_timeout_in_seconds", AttributeType.NUMERIC),
-            Attribute("accept_rounds_with_failures", AttributeType.TEXT),
-            Attribute("enable_ssl", AttributeType.TEXT),
-            Attribute("enable_dynamic_adjustment", AttributeType.TEXT),
-            Attribute("server_aggregation_strategy", AttributeType.TEXT),
-            Attribute("fraction_fit", AttributeType.NUMERIC),
-            Attribute("fraction_evaluate", AttributeType.NUMERIC),
-            Attribute("min_fit_clients", AttributeType.NUMERIC),
-            Attribute("min_evaluate_clients", AttributeType.NUMERIC),
-            Attribute("min_available_clients", AttributeType.NUMERIC),
-        ],
-    )
-    tf1_output = Set("oServerConfig", SetType.OUTPUT, [])
-    tf1.set_sets([tf1_input, tf1_output])
-    df.add_transformation(tf1)
-
-    tf2 = Transformation("Strategy")
-
-    tf2_input = Set(
-        "iStrategy",
-        SetType.INPUT,
-        [
-            Attribute("server_learning_rate", AttributeType.NUMERIC),
-            Attribute("server_momentum", AttributeType.NUMERIC),
-        ],
-    )
-    tf2_output = Set("oStrategy", SetType.OUTPUT, [])
-    tf2.set_sets([tf2_input, tf2_output])
-    df.add_transformation(tf2)
-
-    tf3 = Transformation("DatasetLoad")
-    tf3_input = Set(
-        "iDatasetLoad",
-        SetType.INPUT,
-        [
-            Attribute("client_id", AttributeType.NUMERIC),
-            Attribute("loading_time", AttributeType.TEXT),
-        ],
-    )
-    tf3_output = Set("oDatasetLoad", SetType.OUTPUT, [])
-    tf3.set_sets([tf3_input, tf3_output])
-    df.add_transformation(tf3)
-
-    tf4 = Transformation("ModelConfig")
-    tf4_input = Set(
-        "iModelConfig",
-        SetType.INPUT,
-        [
-            Attribute("model", AttributeType.TEXT),
-            Attribute("optimizer", AttributeType.TEXT),
-            Attribute("loss_function", AttributeType.TEXT),
-            Attribute("loss_weights", AttributeType.TEXT),
-            Attribute("weighted_metrics", AttributeType.TEXT),
-            Attribute("run_eagerly", AttributeType.TEXT),
-            Attribute("steps_per_execution", AttributeType.NUMERIC),
-            Attribute("jit_compile", AttributeType.TEXT),
-            Attribute("input_shape", AttributeType.TEXT),
-            Attribute("alpha", AttributeType.NUMERIC),
-            Attribute("include_top", AttributeType.TEXT),
-            Attribute("weights", AttributeType.TEXT),
-            Attribute("input_tensor", AttributeType.TEXT),
-            Attribute("pooling", AttributeType.TEXT),
-            Attribute("classes", AttributeType.NUMERIC),
-            Attribute("classifier_activation", AttributeType.TEXT),
-        ],
-    )
-
-    tf4_output = Set(
-        "oModelConfig",
-        SetType.OUTPUT,
-        [],
-    )
-
-    tf4.set_sets([tf4_input, tf4_output])
-    df.add_transformation(tf4)
-
-    tf5 = Transformation("OptimizerConfig")
-    tf5_input = Set(
-        "iOptimizerConfig",
-        SetType.INPUT,
-        [
-            Attribute("learning_rate", AttributeType.NUMERIC),
-            Attribute("momentum", AttributeType.NUMERIC),
-            Attribute("nesterov", AttributeType.TEXT),
-            Attribute("name", AttributeType.TEXT),
-        ],
-    )
-
-    tf5_output = Set(
-        "oOptimizerConfig",
-        SetType.OUTPUT,
-        [],
-    )
-
-    tf5.set_sets([tf5_input, tf5_output])
-    df.add_transformation(tf5)
-
-    tf6 = Transformation("LossConfig")
-    tf6_input = Set(
-        "iLossConfig",
-        SetType.INPUT,
-        [
-            Attribute("from_logits", AttributeType.TEXT),
-            Attribute("ignore_class", AttributeType.TEXT),
-            Attribute("reduction", AttributeType.TEXT),
-            Attribute("name", AttributeType.TEXT),
-        ],
-    )
-    tf6_output = Set(
-        "oLossConfig",
-        SetType.OUTPUT,
-        [],
-    )
-
-    tf6.set_sets([tf6_input, tf6_output])
-    df.add_transformation(tf6)
-
-    tf7 = Transformation("TrainingConfig")
-    tf7_input = Set(
-        "iTrainingConfig",
-        SetType.INPUT,
-        [
-            Attribute("server_round", AttributeType.NUMERIC),
-            Attribute("starting_time", AttributeType.TEXT),
-            Attribute("ending_time", AttributeType.TEXT),
-            Attribute("shuffle", AttributeType.TEXT),
-            Attribute("batch_size", AttributeType.NUMERIC),
-            Attribute("initial_epoch", AttributeType.NUMERIC),
-            Attribute("epochs", AttributeType.NUMERIC),
-            Attribute("steps_per_epoch", AttributeType.TEXT),
-            Attribute("validation_split", AttributeType.NUMERIC),
-            Attribute("validation_batch_size", AttributeType.TEXT),
-        ],
-    )
-
-    tf7_output = Set(
-        "oTrainingConfig",
-        SetType.OUTPUT,
-        [
-            Attribute("server_round", AttributeType.NUMERIC),
-            Attribute("dynamically_adjusted", AttributeType.TEXT),
-        ],
-    )
-
-    tf1_output.set_type(SetType.INPUT)
-    tf1_output.dependency = tf1._tag
-
-    tf2_output.set_type(SetType.INPUT)
-    tf2_output.dependency = tf2._tag
-
-    tf7.set_sets([tf1_output, tf2_output, tf7_input, tf7_output])
-
-    df.add_transformation(tf7)
-
-    tf8 = Transformation("ClientTraining")
-
-    tf8_output = Set(
-        "oClientTraining",
-        SetType.OUTPUT,
-        [
-            Attribute("client_id", AttributeType.NUMERIC),
-            Attribute("server_round", AttributeType.NUMERIC),
-            Attribute("training_time", AttributeType.NUMERIC),
-            Attribute("size_x_train", AttributeType.NUMERIC),
-            Attribute("global_current_parameters", AttributeType.TEXT),
-            Attribute("accuracy", AttributeType.NUMERIC),
-            Attribute("loss", AttributeType.NUMERIC),
-            Attribute("val_loss", AttributeType.NUMERIC),
-            Attribute("val_accuracy", AttributeType.TEXT),
-            Attribute("local_weights", AttributeType.TEXT),
-            Attribute("starting_time", AttributeType.TEXT),
-            Attribute("ending_time", AttributeType.TEXT),
-        ],
-    )
-
-    tf3_output.set_type(SetType.INPUT)
-    tf3_output.dependency = tf3._tag
-
-    tf4_output.set_type(SetType.INPUT)
-    tf4_output.dependency = tf4._tag
-
-    tf5_output.set_type(SetType.INPUT)
-    tf5_output.dependency = tf5._tag
-
-    tf6_output.set_type(SetType.INPUT)
-    tf6_output.dependency = tf6._tag
-
-    tf7_output.set_type(SetType.INPUT)
-    tf7_output.dependency = tf7._tag
-
-    tf8.set_sets(
-        [
-            tf3_output,
-            tf4_output,
-            tf5_output,
-            tf6_output,
-            tf7_output,
-            tf8_output,
-        ]
-    )
-    df.add_transformation(tf8)
-
-    tf9 = Transformation("ServerTrainingAggregation")
-    tf9_output = Set(
-        "oServerTrainingAggregation",
-        SetType.OUTPUT,
-        [
-            Attribute("server_round", AttributeType.NUMERIC),
-            Attribute("total_num_clients", AttributeType.NUMERIC),
-            Attribute("total_num_examples", AttributeType.NUMERIC),
-            Attribute("accuracy", AttributeType.NUMERIC),
-            Attribute("loss", AttributeType.NUMERIC),
-            Attribute("val_accuracy", AttributeType.NUMERIC),
-            Attribute("val_loss", AttributeType.NUMERIC),
-            Attribute("training_time", AttributeType.NUMERIC),
-            Attribute("starting_time", AttributeType.TEXT),
-            Attribute("ending_time", AttributeType.TEXT),
-        ],
-    )
-
-    tf8_output.set_type(SetType.INPUT)
-    tf8_output.dependency = tf8._tag
-
-    tf9.set_sets([tf8_output, tf9_output])
-    df.add_transformation(tf9)
-
-    tf10 = Transformation("EvaluationConfig")
-    tf10_input = Set(
-        "iEvaluationConfig",
-        SetType.INPUT,
-        [
-            Attribute("batch_size", AttributeType.NUMERIC),
-            Attribute("steps", AttributeType.TEXT),
-        ],
-    )
-
-    tf10_output = Set(
-        "oEvaluationConfig",
-        SetType.OUTPUT,
-        [],
-    )
-
-    tf9_output.set_type(SetType.INPUT)
-    tf9_output.dependency = tf9._tag
-
-    tf10.set_sets([tf9_output, tf10_input, tf10_output])
-    df.add_transformation(tf10)
-
-    tf11 = Transformation("ClientEvaluation")
-
-    tf11_output = Set(
-        "oClientEvaluation",
-        SetType.OUTPUT,
-        [
-            Attribute("client_id", AttributeType.NUMERIC),
-            Attribute("server_round", AttributeType.NUMERIC),
-            Attribute("loss", AttributeType.NUMERIC),
-            Attribute("evaluation_time", AttributeType.NUMERIC),
-            Attribute("accuracy", AttributeType.NUMERIC),
-            Attribute("num_testing_examples", AttributeType.NUMERIC),
-            Attribute("starting_time", AttributeType.TEXT),
-            Attribute("ending_time", AttributeType.TEXT),
-        ],
-    )
-
-    tf10_output.set_type(SetType.INPUT)
-    tf10_output.dependency = tf10._tag
-
-    tf11.set_sets([tf10_output, tf11_output])
-    df.add_transformation(tf11)
-
-    tf12 = Transformation("ServerEvaluationAggregation")
-
-    tf12_output = Set(
-        "oServerEvaluationAggregation",
-        SetType.OUTPUT,
-        [
-            Attribute("server_round", AttributeType.NUMERIC),
-            Attribute("total_num_clients", AttributeType.NUMERIC),
-            Attribute("total_num_examples", AttributeType.NUMERIC),
-            Attribute("accuracy", AttributeType.NUMERIC),
-            Attribute("loss", AttributeType.NUMERIC),
-            Attribute("evaluation_time", AttributeType.NUMERIC),
-            Attribute("starting_time", AttributeType.TEXT),
-            Attribute("ending_time", AttributeType.TEXT),
-        ],
-    )
-
-    tf11_output.set_type(SetType.INPUT)
-    tf11_output.dependency = tf11._tag
-
-    tf12.set_sets([tf11_output, tf12_output])
-    df.add_transformation(tf12)
-
-    tf12_output.set_type(SetType.INPUT)
-    tf12_output.dependency = tf12._tag
-
-    tf7 = Transformation("TrainingConfig")
-
-    tf7.set_sets([tf12_output])
-    df.add_transformation(tf7)
-
-    df.save()
-    tries = 0
-    while tries < 100:
-        try:
-            conn = pymonetdb.connect(
-                username="monetdb",
-                password="monetdb",
-                hostname="localhost",
-                port="50000",
-                database="dataflow_analyzer",
-            )
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-            CREATE OR REPLACE FUNCTION check_metrics (fl_round int)
-            RETURNS table (training_time double, accuracy_training double, loss_training double, 
-                val_accuracy double, val_loss double, accuracy_evaluation double, loss_evaluation double)
-            BEGIN
-                RETURN
-                SELECT
-                    st.training_time,
-                    st.accuracy,
-                    st.loss,
-                    st.val_accuracy,
-                    st.val_loss,
-                    se.accuracy,
-                    se.loss
-                FROM
-                    oservertrainingaggregation as st
-                JOIN 
-                    oserverevaluationaggregation as se
-                ON
-                    st.server_round = se.server_round
-                WHERE
-                    st.server_round = fl_round;
-            END;"""
-            )
-
-            cursor.execute(
-                """CREATE FUNCTION update_hyperparameters (accuracy_goal double,
-            limit_training_time double,
-            limit_accuracy_change double,
-            fl_round int)
-            RETURNS boolean
-            BEGIN
-                RETURN
-                SELECT 
-                    CASE WHEN (SELECT DISTINCT dynamically_adjusted FROM otrainingconfig
-                        WHERE server_round BETWEEN fl_round - 2 AND fl_round - 1 AND dynamically_adjusted = 'True') IS NOT NULL THEN 0
-                        WHEN (SELECT DISTINCT
-                        CASE
-                            WHEN (last_value(accuracy_training) OVER () < accuracy_goal
-                            AND last_value(training_time) OVER () < limit_training_time*60 
-                            AND (last_value(accuracy_training) OVER () > first_value(accuracy_training) OVER ()
-                            AND last_value(val_accuracy) OVER () > first_value(val_accuracy) OVER ())
-                            AND last_value(accuracy_training) OVER () - first_value(accuracy_training) OVER () < limit_accuracy_change)
-                            THEN 1
-                            ELSE 0
-                        END
-                        FROM
-                            (
-                            SELECT * FROM check_metrics(fl_round - 2)
-                            UNION 
-                            SELECT * FROM check_metrics(fl_round - 1)) AS t1) THEN 1
-                    ELSE 0
-                END;
-            END;"""
-            )
-
-            conn.commit()
-            cursor.close()
-            conn.close()
-            break
-        except Exception as e:
-            time.sleep(1)
-            tries += 1
-
-    ##########
     # Parse Flower Server Arguments.
     ag = ArgumentParser(description="Flower Server Arguments")
     ag.add_argument(
@@ -1371,19 +1502,31 @@ def main() -> None:
         required=True,
         help="Server Config File (no default)",
     )
+    ag.add_argument(
+        "--id_weights_mongo",
+        type=str,
+        required=False,
+        default=None,
+    )
     parsed_args = ag.parse_args()
     # Get Flower Server Arguments.
-    server_id = int(parsed_args.server_id)
+    experiment_id = int(parsed_args.server_id)
     server_config_file = Path(parsed_args.server_config_file)
     # Init FlowerServer Object.
-    fs = FlowerServer(server_id, server_config_file)
+    fs = FlowerServer(experiment_id, server_config_file)
     # Parse Flower Server Config File.
     fs.parse_flower_server_config_file()
     # Instantiate and Set Logger.
     logger = fs.load_logger()
     fs.set_attribute("logger", logger)
     # Load and Set Initial Global Model Parameters.
-    initial_global_model_parameters = fs.load_initial_global_model_parameters()
+
+    id_weights_mongo = parsed_args.id_weights_mongo
+
+    initial_global_model_parameters = fs.load_initial_global_model_parameters(
+        id_weights_mongo
+    )
+
     fs.set_attribute("initial_global_model_parameters", initial_global_model_parameters)
     # Load and Set Initial Fit Config.
     fit_config = fs.load_initial_fit_config()
