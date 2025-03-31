@@ -142,6 +142,13 @@ SELECT server_round, insertion_time, weights_mongo_id, checkpoint_time FROM oSer
 -- to monitor the insertion of the checkpoints
 ```
 
+### Provenance Graph
+
+The user can also access `localhost:22000` to view the provenance graph and understand each step of the FL workflow:
+
+![image](https://github.com/user-attachments/assets/b44186dd-3a5c-4bbb-a116-58d2d5028a83)
+
+
 
 ## References
 
