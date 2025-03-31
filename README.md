@@ -19,21 +19,33 @@ Since each training round can take minutes to hours, the ability to monitor and 
 
 This project addresses these challenges by improving traceability and monitoring capabilities in FL workflows.
 
+# Flower-PROV: Provenance-Aware Federated Learning
+
+**Flower-PROV** is an extension of the open-source [**Flower**](https://flower.ai/) Federated Learning (FL) framework, designed to integrate **provenance tracking** as a core component of FL workflows to enhance **reproducibility and analysis**.
+
 ## Overview
-Repositório para os artefatos de código e documentação desenvolvidos para o Trabalho de Conclusão de Curso (TCC) do curso de Sistemas de Informação do Instituto de Computação da Universidade Federal Fluminense (IC/UFF). O trabalho tem como título "AkôFlow - Workflow Científico em nuvem com Kubernetes".
 
-## Autores
-1. Wesley Ferreira - @ovvesley 
-2. Daniel de Oliveira - @danielcmo (orientador)
+This project builds on our recent research, where further details can be found:  
+📄 [Flower-PROV: Provenance-Aware Federated Learning](https://dblp.org/rec/conf/carla/LopesNBD023)
 
-## Workflow Científico em nuvem com Kubernetes
+**Flower-PROV** enables the **automatic and distributed capture** of:
+- **Retrospective provenance** (*r-prov*): Logs details about the actual FL workflow execution.
+- **Prospective provenance** (*p-prov*): Represents the FL workflow specification.
 
-### AkôFlow - Ferramenta para execução de Workflow Científico em Kubernetes
+The captured provenance data includes:
+- Participating clients
+- Hyperparameter values
+- Accuracy metrics
+- Model versions and checkpoints
 
-O AkôFlow é uma ferramenta para execução de workflows científicos em Kubernetes. Ele utiliza a API do Kubernetes para criar e gerenciar recursos de execução de workflows, como pods e jobs. O AkôFlow é uma ferramenta de linha de comando que permite a execução de workflows científicos de forma distribuída e paralela em um cluster Kubernetes.
+Beyond simply collecting provenance data, **Flower-PROV** actively **utilizes** it to:
+- **Dynamically adjust model hyperparameters** during training.
+- **Enable clients to recover previously trained models** as a starting point for local training, avoiding redundant computations.
 
-### Documentação
-O AkôFlow possui uma documentação completa que descreve como instalar, configurar e utilizar a ferramenta. A documentação está disponível em [https://akoflow.com/docs](https://akoflow.com/docs).
+## References
+
+- Beutel, D. J., et al. *Flower: A Friendly Federated Learning Framework.* [arXiv:2007.14390](https://arxiv.org/abs/2007.14390), 2020.  
+- Lopes, G., et al. *Flower-PROV: Provenance-Aware Federated Learning.* CARLA 2023.  
 
 
 # Flower-PROV
