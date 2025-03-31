@@ -45,6 +45,21 @@ Beyond simply collecting provenance data, **Flower-PROV** actively **uses** it t
 - **Dynamically adjust model hyperparameters** during training.
 - **Enable clients to recover previously trained models** as a starting point for local training, avoiding redundant computations.
 
+## Requirements
+
+keras==2.12.0
+
+matplotlib==3.7.1
+pandas==2.0.1
+
+Pillow==9.5.0
+
+pymonetdb==1.6.4
+
+streamlit==1.27.2
+
+tensorflow==2.12.0
+
 ## 🎯 Installation  
 
 ##  🐳 Running an Example in a Docker Environment  🐳
