@@ -11,13 +11,13 @@
 
 ## Motivation
 
-Federated Learning (FL) has emerged as a privacy-preserving paradigm that enables distributed model training without sharing raw data. However, ensuring traceability in FL workflows remains a challenge due to the inherently distributed nature of FL. Data is spread across multiple clients—ranging from a few to thousands—without clear consumption/production relationships within the workflow.
+Federated Learning (FL) has emerged as a privacy-preserving paradigm that enables distributed model training without sharing raw data. However, ensuring **traceability** in FL workflows **remains a challenge** due to the inherently **distributed nature of FL**. Data is spread across multiple clients—ranging from a few to thousands—without clear consumption/production relationships within the workflow.
 
-Tracking and understanding model evolution in this scenario requires insights into the data derivation path and key evaluation metrics (e.g., accuracy, silhouette score) for both local and aggregated models. This information is essential not only for understanding and explaining the training process but also for dynamically adjusting the FL workflow.
+Tracking and understanding model evolution in this scenario requires insights into the data derivation path and key evaluation metrics (_e.g._, accuracy, silhouette score) for both local and aggregated models. This information is essential not only for understanding and explaining the training process but also for dynamically adjusting the FL workflow.
 
-Since each training round can take anywhere from minutes to hours, the ability to monitor and fine-tune the process in real-time is critical. Poor hyperparameter configurations can lead to wasted time and computational resources—especially in existing FL frameworks, where users often only evaluate model performance after training is complete.
+Since each training round can take minutes to hours, the ability to monitor and fine-tune the process in real time is critical. Poor hyperparameter configurations can lead to wasted time and computational resources—especially in existing FL frameworks, where users often only evaluate model performance after complete training.
 
-This repository aims to address these challenges by improving traceability and monitoring capabilities in FL workflows.
+This project addresses these challenges by improving traceability and monitoring capabilities in FL workflows.
 
 ## Overview
 Repositório para os artefatos de código e documentação desenvolvidos para o Trabalho de Conclusão de Curso (TCC) do curso de Sistemas de Informação do Instituto de Computação da Universidade Federal Fluminense (IC/UFF). O trabalho tem como título "AkôFlow - Workflow Científico em nuvem com Kubernetes".
