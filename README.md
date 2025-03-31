@@ -44,7 +44,7 @@ Beyond simply collecting provenance data, **Flower-PROV** actively **uses** it t
 
 ### Software requirements
 
-The following list of software has to be configured/installed for running Flower-PROV.
+The following list of software has to be configured/installed to run Flower-PROV.
 
 - [MonetDB](http://www.monetdb.org/Documentation/UserGuide/Tutorial) and [pymonetdb](https://pypi.org/project/pymonetdb/)
 - [MongoDB](https://www.mongodb.com/) and [pymongo](https://pypi.org/project/pymongo/)
@@ -53,13 +53,13 @@ The following list of software has to be configured/installed for running Flower
 
 ##  🐳 Running an Example in a Docker Environment  🐳
 
-We provide a pre-built Docker image that includes the DfAnalyzer, the python library and the provenance database (MonetDB):
+We provide a pre-built Docker image that includes the DfAnalyzer provenance library, the Python library, and the provenance database (MonetDB):
 
 ```bash
 docker pull nymeria0042/dfanalyzer
 ```
 
-We also provide a `docker-compose.yaml` that we'll use to launch our containers.
+We also provide a `docker-compose.yaml` that we will use to launch our containers.
 
 This guide demonstrates how to run a Flower-PROV container using the CIFAR-10 dataset. We begin by splitting the dataset in a balanced manner using the `dataset-splitter` component. 
 
@@ -93,7 +93,7 @@ docker compose up client1 client2 client3 client4 client5
 
 ### Submiting queries 🔍
 
-Once the experiment is running, you can submit queries to the provenance database (MonetDB) to monitor metrics and parameter/hyperparameters configurations.
+Once the experiment runs, you can submit queries to the provenance database (MonetDB) to monitor metrics and parameter/hyperparameters configurations.
 
 First, we connect to the provenance database, running in the DfAnalyzer container:
 
@@ -137,6 +137,18 @@ The user can also access `localhost:22000` to view the provenance graph and unde
 To monitor the metrics, the user can run the streamlit app locally:
 
 ```streamlit run monitoring/Flower-PROV_Monitor.py```
+
+
+### Team
+
+- **Current Members**
+   + Camila Lopes
+   + Aline Paes
+   + Daniel de Oliveira
+- **Former Members**
+   + Alan Lira
+   + Cristina Boeres
+   + Lucia Drummond
 
 
 ## References
