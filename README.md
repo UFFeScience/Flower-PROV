@@ -25,9 +25,6 @@ This project addresses these challenges by improving traceability and monitoring
 
 ## Overview
 
-This project builds on our recent research, where further details can be found:  
-📄 [Flower-PROV: Provenance-Aware Federated Learning](https://dblp.org/rec/conf/carla/LopesNBD023)
-
 **Flower-PROV** enables the **automatic and distributed capture** of:
 - **Retrospective provenance** (*r-prov*): Logs details about the actual FL workflow execution.
 - **Prospective provenance** (*p-prov*): Represents the FL workflow specification.
@@ -38,14 +35,14 @@ The captured provenance data includes:
 - Accuracy metrics
 - Model versions and checkpoints
 
-Beyond simply collecting provenance data, **Flower-PROV** actively **utilizes** it to:
+Beyond simply collecting provenance data, **Flower-PROV** actively **uses** it to:
 - **Dynamically adjust model hyperparameters** during training.
 - **Enable clients to recover previously trained models** as a starting point for local training, avoiding redundant computations.
 
 ## References
 
-- Beutel, D. J., et al. *Flower: A Friendly Federated Learning Framework.* [arXiv:2007.14390](https://arxiv.org/abs/2007.14390), 2020.  
-- Lopes, G., et al. *Flower-PROV: Provenance-Aware Federated Learning.* CARLA 2023.  
+- Beutel, D. J., et al. [*Flower: A Friendly Federated Learning Framework.*](https://arxiv.org/abs/2007.14390), 2020.  
+- Lopes, G., et al. [*Flower-PROV: Provenance-Aware Federated Learning.*](https://dblp.org/rec/conf/carla/LopesNBD023) CARLA 2023.  
 
 
 # Flower-PROV
