@@ -154,7 +154,7 @@ To monitor the metrics, the user can run the streamlit app locally:
 ## References
 
 - Beutel, D. J., et al. [*Flower: A Friendly Federated Learning Framework.*](https://arxiv.org/abs/2007.14390), 2020.  
-- Lopes, C., et al. [*Flower-PROV: Provenance-Aware Federated Learning.*](https://dblp.org/rec/conf/carla/LopesNBD023) CARLA 2023.  
+- Lopes, C., et al. [*Provenance-Based Dynamic Fine-Tuning of Cross-Silo Federated Learning.*](https://dblp.org/rec/conf/carla/LopesNBD023) CARLA 2023.  
 
 ## 📜 License  
 
