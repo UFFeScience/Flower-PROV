@@ -1,5 +1,7 @@
 ## Flower-PROV: Adding Provenance Features in Federated Learning
 
+![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)  
+
 ```sh
  ________   __                                                    _______    _______        ___     ____   ____
 |_   __  | [  |                                                  |_   __ \  |_   __ \     .'   `.  |_  _| |_  _|
@@ -19,30 +21,37 @@ Since each training round can take minutes to hours, the ability to monitor and 
 
 This project addresses these challenges by improving traceability and monitoring capabilities in FL workflows.
 
-# Flower-PROV: Provenance-Aware Federated Learning
+# ## 🚀 Flower-PROV: Provenance-Aware Federated Learning
 
 **Flower-PROV** is an extension of the open-source [**Flower**](https://flower.ai/) Federated Learning (FL) framework, designed to integrate **provenance tracking** as a core component of FL workflows to enhance **reproducibility and analysis**.
 
-## Overview
+## 🔍 Key Features
 
 **Flower-PROV** enables the **automatic and distributed capture** of:
 - **Retrospective provenance** (*r-prov*): Logs details about the actual FL workflow execution.
 - **Prospective provenance** (*p-prov*): Represents the FL workflow specification.
 
 The captured provenance data includes:
-- Participating clients
-- Hyperparameter values
-- Accuracy metrics
-- Model versions and checkpoints
+✅ Participating clients  
+✅ Hyperparameter values  
+✅ Accuracy metrics  
+✅ Model versions and checkpoints  
 
 Beyond simply collecting provenance data, **Flower-PROV** actively **uses** it to:
 - **Dynamically adjust model hyperparameters** during training.
 - **Enable clients to recover previously trained models** as a starting point for local training, avoiding redundant computations.
 
+## 🎯 Demonstration  
+
+
 ## References
 
 - Beutel, D. J., et al. [*Flower: A Friendly Federated Learning Framework.*](https://arxiv.org/abs/2007.14390), 2020.  
 - Lopes, G., et al. [*Flower-PROV: Provenance-Aware Federated Learning.*](https://dblp.org/rec/conf/carla/LopesNBD023) CARLA 2023.  
+
+## 📜 License  
+
+This project is licensed under the **Apache License 2.0**. See the [LICENSE](LICENSE) file for more details.  
 
 
 # Flower-PROV
