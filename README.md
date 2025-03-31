@@ -35,6 +35,7 @@ This project addresses these challenges by improving traceability and monitoring
 - **Prospective provenance** (*p-prov*): Represents the FL workflow specification.
 
 The captured provenance data includes:
+
 ✅ Participating clients  
 ✅ Hyperparameter values  
 ✅ Accuracy metrics  
