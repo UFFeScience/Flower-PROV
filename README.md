@@ -45,7 +45,9 @@ Beyond simply collecting provenance data, **Flower-PROV** actively **uses** it t
 - **Dynamically adjust model hyperparameters** during training.
 - **Enable clients to recover previously trained models** as a starting point for local training, avoiding redundant computations.
 
-## 🎯 Demonstration  
+## 🎯 Installation  
+
+##  🐳 Running an Example in a Docker Environment  🐳
 
 
 ## References
