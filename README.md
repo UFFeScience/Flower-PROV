@@ -25,9 +25,6 @@ This project addresses these challenges by improving traceability and monitoring
 
 **Flower-PROV** is an extension of the open-source [**Flower**](https://flower.ai/) Federated Learning (FL) framework, designed to integrate **provenance tracking** as a core component of FL workflows to enhance **reproducibility and analysis**.
 
-![image](https://github.com/user-attachments/assets/e83def03-c5a1-4802-8207-4fad38d0e579)
-
-
 ## 🔍 Key Features
 
 **Flower-PROV** enables the **automatic and distributed capture** of:
