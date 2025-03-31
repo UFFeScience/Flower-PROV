@@ -149,19 +149,18 @@ The user can also access `localhost:22000` to view the provenance graph and unde
 ![image](https://github.com/user-attachments/assets/b44186dd-3a5c-4bbb-a116-58d2d5028a83)
 
 
+### Monitoring
+
+To monitor the metrics, the user can run the streamlit app locally:
+
+```streamlit run monitoring/Flower-PROV_Monitor.py```
+
 
 ## References
 
 - Beutel, D. J., et al. [*Flower: A Friendly Federated Learning Framework.*](https://arxiv.org/abs/2007.14390), 2020.  
-- Lopes, G., et al. [*Flower-PROV: Provenance-Aware Federated Learning.*](https://dblp.org/rec/conf/carla/LopesNBD023) CARLA 2023.  
+- Lopes, C., et al. [*Flower-PROV: Provenance-Aware Federated Learning.*](https://dblp.org/rec/conf/carla/LopesNBD023) CARLA 2023.  
 
 ## 📜 License  
 
 This project is licensed under the **Apache License 2.0**. See the [LICENSE](LICENSE) file for more details.  
-
-
-# Flower-PROV
-
-Repository with code for Flower-PROV framework, which extends Flower framework architecture adding provenance capabilities and possibility of dynamic-tuning and fault tolerance.
-
-To monitor, run ```streamlit run monitoring/Flower-PROV_Monitor.py```
