@@ -1,4 +1,4 @@
-## Flower-PROV: Adding Provenance Features in Federated Learning
+![image](https://github.com/user-attachments/assets/df82830b-8bd0-4b43-b64b-6291b8a01c44)![image](https://github.com/user-attachments/assets/9ad32a8b-647d-490d-9ee0-54b3b82db915)## Flower-PROV: Adding Provenance Features in Federated Learning
 
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)  
 
@@ -59,7 +59,88 @@ tensorflow==2.12.0
 
 ## 🎯 Installation  
 
+### Software requirements
+
+The following list of software has to be configured/installed for running Flower-PROV.
+
+- [MonetDB](http://www.monetdb.org/Documentation/UserGuide/Tutorial) and [pymonetdb](https://pypi.org/project/pymonetdb/)
+- [MongoDB](https://www.mongodb.com/) and [pymongo](https://pypi.org/project/pymongo/)
+- [DfAnalyzer](https://github.com/dbpina/keras-prov/tree/main/DfAnalyzer)
+- [dfa-lib-python](https://github.com/dbpina/keras-prov/tree/main/dfa-lib-python/)
+
 ##  🐳 Running an Example in a Docker Environment  🐳
+
+We provide a pre-built Docker image that includes the DfAnalyzer, the python library and the provenance database (MonetDB):
+
+```bash
+docker pull nymeria0042/dfanalyzer
+```
+
+We also provide a `docker-compose.yaml` that we'll use to launch our containers.
+
+This guide demonstrates how to run a Flower-PROV container using the CIFAR-10 dataset. We begin by splitting the dataset in a balanced manner using the `dataset-splitter` component. 
+
+Navigate to the `dataset-splitter` directory and execute the following command:
+
+```sh
+python splitter.py --dataset_splitter_config_file config/dataset_splitter.cfg
+```
+
+This will create 5 folders - default - with the data that will be used by each client.
+
+Next, we can start the DfAnalyzer container, which runs in the background to capture all provenance data for the experiment:
+
+```sh
+docker compose up dfanalyzer
+```
+
+Once the DfAnalyzer service is running, execute the prospective provenance script, which defines the structure and parameters to be captured. Additionally, start the MongoDB service, which stores the model weights for fault tolerance.
+
+When it’s finished, we can start the server:
+
+```sh
+docker compose up server
+```
+
+Start the clients — five in this demonstration:
+
+```sh
+docker compose up client1 client2 client3 client4 client5
+```
+
+### Submiting queries 🔍
+
+Once the experiment is running, you can submit queries to the provenance database (MonetDB) to monitor metrics and parameter/hyperparameters configurations.
+
+First, we connect to the provenance database, running in the DfAnalyzer container:
+
+```sh
+ docker exec -it dfanalyzer mclient -u monetdb -d dataflow_analyzer
+```
+
+The default password is `monetdb`. 
+
+Then, we can submit the queries, like:.
+
+```sql
+SELECT client_id FROM oClientTraining WHERE server_round = 5;
+-- to see which clients were participating in round 5
+```
+
+```sql
+SELECT server_round, accuracy FROM oServerTrainingAggregation ;
+-- to see how the accuracy is evolving
+```
+
+```sql
+SELECT server_round, dynamically_adjusted FROM oTrainingConfig;
+--  to see in which rounds the dynamic adjust was trigged
+```
+
+```sql
+SELECT server_round, insertion_time, weights_mongo_id, checkpoint_time FROM oServerTrainingAggregation;
+-- to monitor the insertion of the checkpoints
+```
 
 
 ## References
