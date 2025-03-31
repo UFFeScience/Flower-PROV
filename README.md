@@ -149,6 +149,11 @@ To monitor the metrics, the user can run the streamlit app locally:
    + Alan Lira
    + Cristina Boeres
    + Lucia Drummond
+      
+
+[![Watch the video](https://img.youtube.com/vi/z_x7LvfnBVc/maxresdefault.jpg)](https://youtu.be/z_x7LvfnBVc)
+
+### [Watch this video on YouTube](https://youtu.be/z_x7LvfnBVc)
 
 
 ## References
