@@ -60,7 +60,7 @@ client_config_file=${2}
 
 # Launch the Flower Clients (Background Processes).
 # for ((client_id = 0; client_id < $num_clients; client_id++)); do
-python3 dfanalyzer-code/flower_client.py \
+python3 flower_client.py \
     --client_id=$client_id \
     --client_config_file=$client_config_file &
 # done

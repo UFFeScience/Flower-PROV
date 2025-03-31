@@ -1,0 +1,108 @@
+version: "3.8"
+services:
+  dfanalyzer:
+    image: nymeria0042/dfanalyzer
+    container_name: dfanalyzer
+    restart: "no"
+    network_mode: "host"
+    environment:
+      - DFA_URL=http://0.0.0.0
+    volumes:
+      - ./dataset-splitter/dataset_partitions:/dataset_partitions
+    working_dir: "/DfAnalyzer"
+    entrypoint: [ "sh", "start-dfanalyzer.sh" ]
+
+  prospective-provenance:
+    image: nymeria0042/dfanalyzer
+    container_name: provenance
+    restart: "no"
+    network_mode: "host"
+    environment:
+      - DFA_URL=http://localhost:22000
+    volumes:
+      - ./flower-prov:/applications/flowering
+    working_dir: "/applications/flowering/"
+    command: bash -c " python3 prospective_provenance.py"
+
+  server:
+    image: nymeria0042/dfanalyzer
+    container_name: server
+    restart: "no"
+    network_mode: "host"
+    environment:
+      - DFA_URL=http://localhost:22000
+    volumes:
+      - ./flower-prov:/applications/flowering
+    working_dir: "/applications/flowering/"
+    command: bash -c " bash script/start_flower_server.sh config/flower_server.cfg"
+
+  mongodb:
+    image: mongo
+    container_name: mongodb
+    restart: "no"
+    environment:
+
+      - MONGO_INITDB_USERNAME=camila.lopes
+      - MONGO_INITDB_PASSWORD=teste123
+    ports:
+      - 27017:27017
+
+  client1:
+    image: nymeria0042/dfanalyzer
+    restart: "no"
+    network_mode: "host"
+    environment:
+      - DFA_URL=http://localhost:22000
+    volumes:
+      - ./flower-prov:/applications/flowering
+      - ./dataset-splitter/dataset_partitions/partition_0:/dataset
+    working_dir: "/applications/flowering/"
+    entrypoint: [ "bash", "script/start_flower_clients.sh", "0", "config/flower_clients.cfg" ]
+
+  client2:
+    image: nymeria0042/dfanalyzer
+    restart: "no"
+    network_mode: "host"
+    environment:
+      - DFA_URL=http://localhost:22000
+    volumes:
+      - ./flower-prov:/applications/flowering
+      - ./dataset-splitter/dataset_partitions/partition_1:/dataset
+    working_dir: "/applications/flowering/"
+    entrypoint: [ "bash", "script/start_flower_clients.sh", "1", "config/flower_clients.cfg" ]
+
+  client3:
+    image: nymeria0042/dfanalyzer
+    restart: "no"
+    network_mode: "host"
+    environment:
+      - DFA_URL=http://localhost:22000
+    volumes:
+      - ./flower-prov:/applications/flowering
+      - ./dataset-splitter/dataset_partitions/partition_2:/dataset
+    working_dir: "/applications/flowering/"
+    entrypoint: [ "bash", "script/start_flower_clients.sh", "2", "config/flower_clients.cfg" ]
+
+  client4:
+    image: nymeria0042/dfanalyzer
+    restart: "no"
+    network_mode: "host"
+    environment:
+      - DFA_URL=http://localhost:22000
+    volumes:
+      - ./flower-prov:/applications/flowering
+      - ./dataset-splitter/dataset_partitions/partition_3:/dataset
+    working_dir: "/applications/flowering/"
+    entrypoint: [ "bash", "script/start_flower_clients.sh", "3", "config/flower_clients.cfg" ]
+
+  client5:
+    image: nymeria0042/dfanalyzer
+    restart: "no"
+    network_mode: "host"
+    environment:
+      - DFA_URL=http://localhost:22000
+    volumes:
+      - ./flower-prov:/applications/flowering
+      - ./dataset-splitter/dataset_partitions/partition_4:/dataset
+    working_dir: "/applications/flowering/"
+    entrypoint: [ "bash", "script/start_flower_clients.sh", "4", "config/flower_clients.cfg" ]
