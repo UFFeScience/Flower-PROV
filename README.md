@@ -1,4 +1,4 @@
-![image](https://github.com/user-attachments/assets/df82830b-8bd0-4b43-b64b-6291b8a01c44)![image](https://github.com/user-attachments/assets/9ad32a8b-647d-490d-9ee0-54b3b82db915)## Flower-PROV: Adding Provenance Features in Federated Learning
+## Flower-PROV: Adding Provenance Features in Federated Learning
 
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)  
 
