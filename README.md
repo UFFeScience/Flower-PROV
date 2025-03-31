@@ -21,7 +21,7 @@ Since each training round can take minutes to hours, the ability to monitor and 
 
 This project addresses these challenges by improving traceability and monitoring capabilities in FL workflows.
 
-# ## 🚀 Flower-PROV: Provenance-Aware Federated Learning
+## 🌻 Flower-PROV: Provenance-Aware Federated Learning 🌻
 
 **Flower-PROV** is an extension of the open-source [**Flower**](https://flower.ai/) Federated Learning (FL) framework, designed to integrate **provenance tracking** as a core component of FL workflows to enhance **reproducibility and analysis**.
 
