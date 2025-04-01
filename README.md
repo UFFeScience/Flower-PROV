@@ -42,7 +42,7 @@ Beyond simply collecting provenance data, **Flower-PROV** actively **uses** it t
 - **Dynamically adjust model hyperparameters** during training.
 - **Enable clients to recover previously trained models** as a starting point for local training, avoiding redundant computations.
 
-### Software requirements
+## ⚙️ Software requirements ⚙️
 
 The following list of software has to be configured/installed to run Flower-PROV.
 
@@ -91,7 +91,7 @@ Start the clients — five in this demonstration:
 docker compose up client1 client2 client3 client4 client5
 ```
 
-### Submiting queries 🔍
+### 🔍 Submiting queries 🔍
 
 Once the experiment runs, you can submit queries to the provenance database (MonetDB) to monitor metrics and parameter/hyperparameters configurations.
 
@@ -125,14 +125,14 @@ SELECT server_round, insertion_time, weights_mongo_id, checkpoint_time FROM oSer
 -- to monitor the insertion of the checkpoints
 ```
 
-### Provenance Graph
+### 🖇️ Provenance Graph 🖇️
 
 The user can also access `localhost:22000` to view the provenance graph and understand each step of the FL workflow:
 
 ![image](https://github.com/user-attachments/assets/b44186dd-3a5c-4bbb-a116-58d2d5028a83)
 
 
-### Monitoring
+### 📈 Monitoring 📈
 
 To monitor the metrics, the user can run the streamlit app locally:
 
